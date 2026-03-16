@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Alex Rivera | Portfolio</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <div class="nav-logo">AR</div>
+    <ul class="nav-links">
+      <li><a href="#about">About</a></li>
+      <li><a href="#projects">Projects</a></li>
+      <li><a href="#skills">Skills</a></li>
+      <li><a href="#contact">Contact</a></li>
+    </ul>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-content">
+      <p class="hero-greeting">Hi, I'm</p>
+      <h1 class="hero-name">Alex Rivera</h1>
+      <p class="hero-title">Computer Science Student &amp; Aspiring Developer</p>
+      <p class="hero-sub">I build things for the web and love solving problems with code.</p>
+      <div class="hero-buttons">
+        <a href="#projects" class="btn btn-primary">See My Work</a>
+        <a href="#contact" class="btn btn-outline">Get In Touch</a>
+      </div>
+    </div>
+    <div class="hero-avatar">
+      <div class="avatar-circle">AR</div>
+    </div>
+  </section>
+
+  <!-- ABOUT -->
+  <section id="about" class="section">
+    <h2 class="section-title">About Me</h2>
+    <div class="about-grid">
+      <div class="about-text">
+        <p>
+          I'm a sophomore studying Computer Science at State University.
+          I'm passionate about building web apps that are both useful and beautiful.
+        </p>
+        <p>
+          Outside of class I'm into hiking, photography, and competitive chess.
+          I'm currently looking for summer internships in software development.
+        </p>
+      </div>
+      <div class="about-stats">
+        <div class="stat-card">
+          <span class="stat-number">12+</span>
+          <span class="stat-label">Projects Built</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-number">3</span>
+          <span class="stat-label">Hackathons</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-number">2</span>
+          <span class="stat-label">Years Coding</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-number">1</span>
+          <span class="stat-label">Internship</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROJECTS -->
+  <section id="projects" class="section section-alt">
+    <h2 class="section-title">Projects</h2>
+    <div class="projects-grid">
+
+      <div class="project-card">
+        <div class="project-icon">🌦️</div>
+        <h3>Weather Dashboard</h3>
+        <p>A real-time weather app using the OpenWeather API. Shows forecasts, humidity, and wind speed with a clean chart view.</p>
+        <div class="project-tags">
+          <span class="tag">JavaScript</span>
+          <span class="tag">API</span>
+          <span class="tag">CSS</span>
+        </div>
+        <div class="project-links">
+          <a href="#" class="link-btn">Live Demo</a>
+          <a href="#" class="link-btn link-ghost">GitHub</a>
+        </div>
+      </div>
+
+      <div class="project-card">
+        <div class="project-icon">📝</div>
+        <h3>Study Planner</h3>
+        <p>A web app that helps students organize study sessions, track assignments, and set reminders. Built with local storage persistence.</p>
+        <div class="project-tags">
+          <span class="tag">React</span>
+          <span class="tag">LocalStorage</span>
+          <span class="tag">Tailwind</span>
+        </div>
+        <div class="project-links">
+          <a href="#" class="link-btn">Live Demo</a>
+          <a href="#" class="link-btn link-ghost">GitHub</a>
+        </div>
+      </div>
+
+      <div class="project-card">
+        <div class="project-icon">🤖</div>
+        <h3>AI Study Buddy</h3>
+        <p>A chatbot that quizzes you on any subject. Uses the Claude API to generate questions and give detailed feedback on your answers.</p>
+        <div class="project-tags">
+          <span class="tag">Python</span>
+          <span class="tag">Claude API</span>
+          <span class="tag">Flask</span>
+        </div>
+        <div class="project-links">
+          <a href="#" class="link-btn">Live Demo</a>
+          <a href="#" class="link-btn link-ghost">GitHub</a>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- SKILLS -->
+  <section id="skills" class="section">
+    <h2 class="section-title">Skills</h2>
+    <div class="skills-grid">
+      <div class="skill-group">
+        <h3>Languages</h3>
+        <div class="skill-list">
+          <div class="skill-bar"><span class="skill-name">Python</span><div class="bar"><div class="fill" style="width:85%"></div></div></div>
+          <div class="skill-bar"><span class="skill-name">JavaScript</span><div class="bar"><div class="fill" style="width:75%"></div></div></div>
+          <div class="skill-bar"><span class="skill-name">HTML/CSS</span><div class="bar"><div class="fill" style="width:90%"></div></div></div>
+          <div class="skill-bar"><span class="skill-name">Java</span><div class="bar"><div class="fill" style="width:60%"></div></div></div>
+        </div>
+      </div>
+      <div class="skill-group">
+        <h3>Tools &amp; Frameworks</h3>
+        <div class="tag-cloud">
+          <span class="tag">React</span>
+          <span class="tag">Flask</span>
+          <span class="tag">Git</span>
+          <span class="tag">VS Code</span>
+          <span class="tag">Claude Code</span>
+          <span class="tag">Node.js</span>
+          <span class="tag">PostgreSQL</span>
+          <span class="tag">Figma</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONTACT -->
+  <section id="contact" class="section section-alt">
+    <h2 class="section-title">Get In Touch</h2>
+    <p class="contact-sub">I'm always open to new opportunities, collaborations, or just a good conversation about tech.</p>
+    <div class="contact-links">
+      <a href="mailto:alex@example.com" class="contact-card">
+        <span class="contact-icon">✉️</span>
+        <span>alex@example.com</span>
+      </a>
+      <a href="#" class="contact-card">
+        <span class="contact-icon">💼</span>
+        <span>LinkedIn</span>
+      </a>
+      <a href="#" class="contact-card">
+        <span class="contact-icon">🐙</span>
+        <span>GitHub</span>
+      </a>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <p>Built with ❤️ by Alex Rivera · 2026</p>
+  </footer>
+
+  <script>
+    // Smooth scroll + active nav highlight
+    const sections = document.querySelectorAll('section[id]');
+    const navLinks = document.querySelectorAll('.nav-links a');
+
+    window.addEventListener('scroll', () => {
+      let current = '';
+      sections.forEach(sec => {
+        if (window.scrollY >= sec.offsetTop - 80) current = sec.id;
+      });
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === `#${current}`) link.classList.add('active');
+      });
+    });
+
+    // Animate skill bars on scroll
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) e.target.classList.add('animate');
+      });
+    }, { threshold: 0.3 });
+
+    document.querySelectorAll('.fill').forEach(el => observer.observe(el));
+  </script>
+
+</body>
+</html>
