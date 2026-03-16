@@ -412,6 +412,89 @@
       animation: pulse 2s ease infinite;
     }
 
+    /* ─── Certifications ──────────────────────────────────────── */
+    .certs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; }
+    .cert-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px; padding: 1.5rem;
+      display: flex; align-items: flex-start; gap: 1rem;
+      transition: all 0.25s;
+    }
+    .cert-card:hover { border-color: var(--accent); transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+    .cert-logo {
+      width: 48px; height: 48px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; flex-shrink: 0;
+    }
+    .cert-body { flex: 1; min-width: 0; }
+    .cert-name { font-size: 0.9rem; font-weight: 700; margin-bottom: 0.2rem; }
+    .cert-issuer { color: var(--muted); font-size: 0.78rem; margin-bottom: 0.6rem; }
+    .cert-badge {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      background: rgba(94,234,212,0.1); border: 1px solid rgba(94,234,212,0.25);
+      color: var(--accent2); border-radius: 6px;
+      padding: 2px 8px; font-size: 0.72rem; font-weight: 600;
+    }
+    .cert-badge::before { content: '✓'; }
+
+    /* ─── Resume ───────────────────────────────────────────────── */
+    #resume { background: rgba(255,255,255,0.015); }
+    .resume-layout { display: grid; grid-template-columns: 1fr 1.5fr; gap: 3rem; align-items: start; }
+
+    .resume-drop {
+      border: 2px dashed var(--border);
+      border-radius: 20px; padding: 3rem 2rem;
+      text-align: center; cursor: pointer;
+      transition: all 0.25s; background: var(--surface);
+      position: relative;
+    }
+    .resume-drop:hover, .resume-drop.drag-over {
+      border-color: var(--accent);
+      background: rgba(124,106,247,0.06);
+    }
+    .resume-drop input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .drop-icon { font-size: 2.5rem; margin-bottom: 1rem; }
+    .drop-title { font-size: 1rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .drop-sub { color: var(--muted); font-size: 0.85rem; margin-bottom: 1.5rem; }
+    .drop-btn {
+      display: inline-block;
+      background: linear-gradient(135deg, var(--accent), #5a4de0);
+      color: #fff; border-radius: 10px;
+      padding: 0.6rem 1.5rem; font-size: 0.875rem; font-weight: 600;
+      pointer-events: none;
+    }
+    .resume-file-info {
+      display: none; align-items: center; gap: 0.75rem;
+      background: rgba(94,234,212,0.08); border: 1px solid rgba(94,234,212,0.2);
+      border-radius: 12px; padding: 0.85rem 1.1rem;
+      font-size: 0.875rem; margin-top: 1rem;
+    }
+    .resume-file-info.visible { display: flex; }
+    .resume-download {
+      display: block; text-align: center; margin-top: 1rem;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text); border-radius: 10px;
+      padding: 0.65rem 1.25rem; font-size: 0.875rem; font-weight: 600;
+      text-decoration: none; transition: all 0.2s;
+    }
+    .resume-download:hover { border-color: var(--accent); }
+
+    .resume-preview {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px; overflow: hidden;
+      height: 560px;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 1rem;
+    }
+    .resume-preview iframe { width: 100%; height: 100%; border: none; display: none; }
+    .preview-placeholder { text-align: center; color: var(--muted); }
+    .preview-placeholder-icon { font-size: 3rem; margin-bottom: 0.75rem; }
+    .preview-placeholder p { font-size: 0.875rem; }
+
     /* ─── Footer ──────────────────────────────────────────────── */
     footer {
       text-align: center; padding: 2rem;
@@ -435,6 +518,9 @@
       .project-card.featured { grid-column: span 1; }
       .featured .card-header { grid-template-columns: 1fr; }
       .tech-grid { grid-template-columns: repeat(3, 1fr); }
+      .certs-grid { grid-template-columns: 1fr; }
+      .resume-layout { grid-template-columns: 1fr; }
+      .resume-preview { height: 400px; }
     }
   </style>
 </head>
@@ -452,6 +538,9 @@
       <li><a href="#projects">Projects</a></li>
       <li><a href="#skills">Skills</a></li>
       <li><a href="#timeline">Experience</a></li>
+      <li><a href="#certs">Certifications</a></li>
+      <li><a href="#resume">Resume</a></li>
+      <li><a href="blog.html">Blog ↗</a></li>
       <li><a href="#contact">Contact</a></li>
     </ul>
   </nav>
@@ -703,6 +792,114 @@
     </div>
   </section>
 
+  <!-- ── CERTIFICATIONS ────────────────────────────────────────── -->
+  <section id="certs">
+    <div class="container">
+      <div class="section-label reveal">Credentials</div>
+      <h2 class="section-title reveal">Certifications</h2>
+      <p class="section-subtitle reveal">Courses and credentials I've earned outside the classroom.</p>
+      <div class="certs-grid">
+
+        <div class="cert-card reveal">
+          <div class="cert-logo" style="background:rgba(255,165,0,0.12)">☁️</div>
+          <div class="cert-body">
+            <div class="cert-name">AWS Cloud Practitioner</div>
+            <div class="cert-issuer">Amazon Web Services · Dec 2025</div>
+            <div class="cert-badge">Verified</div>
+          </div>
+        </div>
+
+        <div class="cert-card reveal reveal-delay-1">
+          <div class="cert-logo" style="background:rgba(94,234,212,0.12)">🤖</div>
+          <div class="cert-body">
+            <div class="cert-name">Machine Learning Specialization</div>
+            <div class="cert-issuer">Coursera · Andrew Ng · Oct 2025</div>
+            <div class="cert-badge">Verified</div>
+          </div>
+        </div>
+
+        <div class="cert-card reveal reveal-delay-2">
+          <div class="cert-logo" style="background:rgba(124,106,247,0.12)">⚛️</div>
+          <div class="cert-body">
+            <div class="cert-name">React – The Complete Guide</div>
+            <div class="cert-issuer">Udemy · Maximilian Schwarzmüller · Aug 2025</div>
+            <div class="cert-badge">Verified</div>
+          </div>
+        </div>
+
+        <div class="cert-card reveal">
+          <div class="cert-logo" style="background:rgba(249,115,22,0.12)">🐍</div>
+          <div class="cert-body">
+            <div class="cert-name">Python for Data Science</div>
+            <div class="cert-issuer">IBM / Coursera · Jul 2025</div>
+            <div class="cert-badge">Verified</div>
+          </div>
+        </div>
+
+        <div class="cert-card reveal reveal-delay-1">
+          <div class="cert-logo" style="background:rgba(56,189,248,0.12)">🔐</div>
+          <div class="cert-body">
+            <div class="cert-name">Web Security Fundamentals</div>
+            <div class="cert-issuer">OWASP Foundation · May 2025</div>
+            <div class="cert-badge">Verified</div>
+          </div>
+        </div>
+
+        <div class="cert-card reveal reveal-delay-2">
+          <div class="cert-logo" style="background:rgba(167,139,250,0.12)">🗄️</div>
+          <div class="cert-body">
+            <div class="cert-name">PostgreSQL Bootcamp</div>
+            <div class="cert-issuer">Udemy · Jose Portilla · Mar 2025</div>
+            <div class="cert-badge">Verified</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── RESUME ─────────────────────────────────────────────────── -->
+  <section id="resume">
+    <div class="container">
+      <div class="section-label reveal">Resume</div>
+      <h2 class="section-title reveal">Download or Preview</h2>
+      <p class="section-subtitle reveal">Upload your resume PDF below — it'll preview right on the page. Recruiters love this.</p>
+      <div class="resume-layout reveal">
+
+        <!-- Left: upload controls -->
+        <div>
+          <div class="resume-drop" id="dropZone">
+            <input type="file" id="resumeInput" accept=".pdf" />
+            <div class="drop-icon">📄</div>
+            <div class="drop-title">Drop your resume here</div>
+            <div class="drop-sub">PDF files only · Max 10 MB</div>
+            <div class="drop-btn">Choose File</div>
+          </div>
+          <div class="resume-file-info" id="fileInfo">
+            <span>📎</span>
+            <span id="fileName">resume.pdf</span>
+          </div>
+          <a href="#" class="resume-download" id="downloadBtn" style="display:none">
+            ⬇ Download Resume
+          </a>
+          <p style="color:var(--muted);font-size:0.78rem;margin-top:1.25rem;line-height:1.6">
+            💡 <strong style="color:var(--text)">Tip for students:</strong> Upload your own PDF to see it preview here. In a real deployment, link to a static file like <code style="color:var(--accent2)">/resume.pdf</code> stored in your repo.
+          </p>
+        </div>
+
+        <!-- Right: live preview -->
+        <div class="resume-preview" id="previewBox">
+          <iframe id="pdfFrame"></iframe>
+          <div class="preview-placeholder" id="previewPlaceholder">
+            <div class="preview-placeholder-icon">📋</div>
+            <p>Upload a PDF to preview it here</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
   <!-- ── CONTACT ────────────────────────────────────────────────── -->
   <section id="contact">
     <div class="container">
@@ -859,6 +1056,40 @@
       card.style.transform = `perspective(600px) rotateY(${x * 8}deg) rotateX(${-y * 8}deg) translateY(-4px)`;
     });
     card.addEventListener('mouseleave', () => { card.style.transform = ''; });
+  });
+
+  // ── Resume upload & PDF preview ───────────────────────────────
+  const dropZone   = document.getElementById('dropZone');
+  const resumeInput = document.getElementById('resumeInput');
+  const pdfFrame   = document.getElementById('pdfFrame');
+  const fileInfo   = document.getElementById('fileInfo');
+  const fileName   = document.getElementById('fileName');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const placeholder = document.getElementById('previewPlaceholder');
+
+  function loadPDF(file) {
+    if (!file || file.type !== 'application/pdf') return;
+    const url = URL.createObjectURL(file);
+    pdfFrame.src = url;
+    pdfFrame.style.display = 'block';
+    placeholder.style.display = 'none';
+    fileName.textContent = file.name;
+    fileInfo.classList.add('visible');
+    downloadBtn.href = url;
+    downloadBtn.download = file.name;
+    downloadBtn.style.display = 'block';
+    dropZone.style.borderStyle = 'solid';
+    dropZone.style.borderColor = 'var(--accent2)';
+  }
+
+  resumeInput.addEventListener('change', e => loadPDF(e.target.files[0]));
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    loadPDF(e.dataTransfer.files[0]);
   });
   </script>
 </body>
