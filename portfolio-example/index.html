@@ -1147,9 +1147,11 @@
   let renderer, scene, camera, clock;
   let robot, torsoGroup, headGroup, armL, armR, legL, legR, leds, antLight, MAT;
   let purpleSpot, tealSpot;
-  const PHASES = { idle: 0, walkIn: 1, dance: 2, walkOut: 3 };
+  const PHASES = { idle: 0, walkIn: 1, dance: 2, bow: 3, walkOut: 4 };
   let phase = PHASES.idle, phaseStart = 0;
-  const WALK_DUR = 2.2;
+  const WALK_DUR    = 2.2;
+  const BOW_DUR     = 3.4;
+  const WALKOUT_DUR = 4.5;
   let songEnded = false;
   let starCtx = null;
   const starParticles = [];
@@ -1345,9 +1347,10 @@
     const btn = document.getElementById('robot-trigger');
 
     // Phase transitions
-    if      (phase === PHASES.walkIn  && dt >= WALK_DUR) { phase = PHASES.dance;   phaseStart = t; }
-    else if (phase === PHASES.dance   && songEnded)       { phase = PHASES.walkOut; phaseStart = t; }
-    else if (phase === PHASES.walkOut && dt >= WALK_DUR)  {
+    if      (phase === PHASES.walkIn  && dt >= WALK_DUR)   { phase = PHASES.dance;   phaseStart = t; }
+    else if (phase === PHASES.dance   && songEnded)          { phase = PHASES.bow;     phaseStart = t; }
+    else if (phase === PHASES.bow     && dt >= BOW_DUR)      { phase = PHASES.walkOut; phaseStart = t; }
+    else if (phase === PHASES.walkOut && dt >= WALKOUT_DUR)  {
       phase = PHASES.idle;
       robot.position.set(-28, 3, 0);
       document.getElementById('robot-canvas').style.display = 'none';
@@ -1371,9 +1374,37 @@
     if (phase === PHASES.dance) {
       doDance(t, dt);
     }
-    // Walk out
+    // Bow — stop dancing, face front, deep bow, hold, stand back up
+    if (phase === PHASES.bow) {
+      const p = Math.min(dt / BOW_DUR, 1);
+      // Smoothly slide back to center X
+      robot.position.x += (0 - robot.position.x) * 0.04;
+      // Smoothly face the audience
+      robot.rotation.y += (0 - robot.rotation.y) * 0.04;
+      // Bow curve: lean in (0→0.35), hold (0.35→0.70), stand up (0.70→1)
+      let bowNorm;
+      if      (p < 0.35) bowNorm = p / 0.35;
+      else if (p < 0.70) bowNorm = 1.0;
+      else               bowNorm = 1.0 - (p - 0.70) / 0.30;
+      const bowAngle = bowNorm * 0.9;
+      torsoGroup.rotation.x = -bowAngle;
+      torsoGroup.rotation.z = 0;
+      torsoGroup.rotation.y = 0;
+      torsoGroup.position.y = bowNorm * 0.1;
+      headGroup.rotation.x  = -bowAngle * 0.55;
+      headGroup.rotation.y  = 0;
+      headGroup.rotation.z  = 0;
+      armL.rotation.x = bowAngle * 0.4;
+      armR.rotation.x = bowAngle * 0.4;
+      armL.rotation.z =  0.2;
+      armR.rotation.z = -0.2;
+      legL.rotation.x = 0; legR.rotation.x = 0;
+      legL.rotation.z = 0; legR.rotation.z = 0;
+    }
+    // Walk out — slow linear exit to the right
     if (phase === PHASES.walkOut) {
-      robot.position.x = Math.pow(Math.min(dt/WALK_DUR,1), 2) * 30;
+      const p = Math.min(dt / WALKOUT_DUR, 1);
+      robot.position.x = p * 32;
       robot.rotation.y = 0;
       walkCycle(t); resetDancePose();
     }
@@ -1401,6 +1432,8 @@
       glowEl.style.top  = sy + 'px';
       if (phase === PHASES.dance && starCtx) {
         emitStars(sx, sy);
+      }
+      if (starCtx && (phase === PHASES.dance || phase === PHASES.bow)) {
         updateStars(starCtx, cw, ch);
       }
     }
@@ -1506,416 +1539,6 @@
     purpleSpot.position.x = robot.position.x - 2;
     tealSpot.position.x   = robot.position.x + 2;
   }
-  </script>
-</body>
-</html>
-
-  // ── Scene setup ──────────────────────────────────────────────
-  const canvas3d = document.getElementById('robot-canvas');
-  const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, alpha: true, antialias: true });
-  renderer.setPixelRatio(window.devicePixelRatio);
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-  const scene  = new THREE.Scene();
-  const W = window.innerWidth, H = 320;
-  renderer.setSize(W, H);
-
-  const camera = new THREE.PerspectiveCamera(42, W / H, 0.1, 100);
-  camera.position.set(0, 1.8, 7);
-  camera.lookAt(0, 1.2, 0);
-
-  window.addEventListener('resize', () => {
-    const w = window.innerWidth;
-    renderer.setSize(w, H);
-    camera.aspect = w / H;
-    camera.updateProjectionMatrix();
-  });
-
-  // ── Lighting ──────────────────────────────────────────────────
-  scene.add(new THREE.AmbientLight(0x8080c0, 0.6));
-
-  const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-  sun.position.set(5, 10, 6);
-  sun.castShadow = true;
-  scene.add(sun);
-
-  const purpleSpot = new THREE.PointLight(0x7c6af7, 3, 12);
-  purpleSpot.position.set(-3, 4, 3);
-  scene.add(purpleSpot);
-
-  const tealSpot = new THREE.PointLight(0x5eead4, 2, 10);
-  tealSpot.position.set(3, 2, 3);
-  scene.add(tealSpot);
-
-  const rimLight = new THREE.DirectionalLight(0x5eead4, 0.8);
-  rimLight.position.set(-5, 3, -4);
-  scene.add(rimLight);
-
-  // ── Floor (reflection plane) ──────────────────────────────────
-  const floorGeo  = new THREE.PlaneGeometry(30, 6);
-  const floorMat  = new THREE.MeshStandardMaterial({
-    color: 0x080810, metalness: 0.5, roughness: 0.8, transparent: true, opacity: 0.4
-  });
-  const floor = new THREE.Mesh(floorGeo, floorMat);
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.y = -0.01;
-  floor.receiveShadow = true;
-  scene.add(floor);
-
-  // ── Materials ─────────────────────────────────────────────────
-  const MAT = {
-    body:    new THREE.MeshStandardMaterial({ color: 0x1e1b3a, metalness: 0.85, roughness: 0.15 }),
-    joint:   new THREE.MeshStandardMaterial({ color: 0x2d2855, metalness: 0.9,  roughness: 0.1  }),
-    accent:  new THREE.MeshStandardMaterial({ color: 0x7c6af7, metalness: 0.95, roughness: 0.05 }),
-    eye:     new THREE.MeshStandardMaterial({ color: 0x5eead4, emissive: 0x5eead4, emissiveIntensity: 1.2, metalness: 0.3, roughness: 0.1 }),
-    panel:   new THREE.MeshStandardMaterial({ color: 0x0d0b20, metalness: 0.6,  roughness: 0.4  }),
-    ledG:    new THREE.MeshStandardMaterial({ color: 0x4ade80, emissive: 0x4ade80, emissiveIntensity: 1 }),
-    ledB:    new THREE.MeshStandardMaterial({ color: 0x60a5fa, emissive: 0x60a5fa, emissiveIntensity: 1 }),
-    ledP:    new THREE.MeshStandardMaterial({ color: 0xc084fc, emissive: 0xc084fc, emissiveIntensity: 1 }),
-    ledY:    new THREE.MeshStandardMaterial({ color: 0xfde047, emissive: 0xfde047, emissiveIntensity: 1 }),
-    antGlow: new THREE.MeshStandardMaterial({ color: 0x5eead4, emissive: 0x5eead4, emissiveIntensity: 2 }),
-  };
-
-  function box(w, h, d, mat, rx=0, ry=0, rz=0) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    m.castShadow = true; m.receiveShadow = true;
-    m.rotation.set(rx, ry, rz);
-    return m;
-  }
-  function sphere(r, mat) {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 24), mat);
-    m.castShadow = true; return m;
-  }
-  function cyl(rt, rb, h, mat, segs=16) {
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, segs), mat);
-    m.castShadow = true; return m;
-  }
-
-  // ── Robot assembly ────────────────────────────────────────────
-  const robot = new THREE.Group();
-  scene.add(robot);
-  robot.position.x = -14; // off screen left
-
-  // Torso group (for body bounce & tilt)
-  const torsoGroup = new THREE.Group();
-  robot.add(torsoGroup);
-
-  // — Body —
-  const bodyMesh = box(1.1, 1.3, 0.7, MAT.body);
-  bodyMesh.position.y = 0.65;
-  torsoGroup.add(bodyMesh);
-
-  // Chest panel
-  const panel = box(0.58, 0.48, 0.06, MAT.panel);
-  panel.position.set(0, 0.72, 0.375);
-  torsoGroup.add(panel);
-
-  // LEDs on chest
-  const ledPositions = [[-0.12, 0.84], [0.12, 0.84], [-0.12, 0.64], [0.12, 0.64]];
-  const ledMats = [MAT.ledG, MAT.ledB, MAT.ledP, MAT.ledY];
-  const leds = ledPositions.map((p, i) => {
-    const led = sphere(0.065, ledMats[i]);
-    led.position.set(p[0], p[1], 0.41);
-    torsoGroup.add(led);
-    return led;
-  });
-
-  // Belly stripe
-  const stripe = box(0.9, 0.06, 0.72, MAT.accent);
-  stripe.position.set(0, 0.32, 0);
-  torsoGroup.add(stripe);
-
-  // Shoulder pads
-  [-1, 1].forEach(s => {
-    const pad = box(0.18, 0.22, 0.75, MAT.accent);
-    pad.position.set(s * 0.635, 1.12, 0);
-    torsoGroup.add(pad);
-  });
-
-  // — Neck —
-  const neck = cyl(0.13, 0.15, 0.18, MAT.joint);
-  neck.position.y = 1.34;
-  torsoGroup.add(neck);
-
-  // — Head group (for head tilt) —
-  const headGroup = new THREE.Group();
-  headGroup.position.y = 1.56;
-  torsoGroup.add(headGroup);
-
-  const headMesh = box(0.85, 0.72, 0.72, MAT.body);
-  headGroup.add(headMesh);
-
-  // Visor strip
-  const visor = box(0.86, 0.22, 0.06, new THREE.MeshStandardMaterial({
-    color: 0x0d1a2e, metalness: 0.3, roughness: 0.05, transparent: true, opacity: 0.85
-  }));
-  visor.position.set(0, 0.08, 0.375);
-  headGroup.add(visor);
-
-  // Eyes
-  const eyeL = sphere(0.11, MAT.eye); eyeL.position.set(-0.2, 0.1, 0.375); headGroup.add(eyeL);
-  const eyeR = sphere(0.11, MAT.eye); eyeR.position.set( 0.2, 0.1, 0.375); headGroup.add(eyeR);
-
-  // Pupil inner
-  [eyeL, eyeR].forEach(eye => {
-    const pupil = sphere(0.055, new THREE.MeshStandardMaterial({ color: 0x020210 }));
-    pupil.position.set(0, 0, 0.09);
-    eye.add(pupil);
-  });
-
-  // Mouth LED bar
-  const mouth = box(0.38, 0.06, 0.04, MAT.accent);
-  mouth.position.set(0, -0.18, 0.375);
-  headGroup.add(mouth);
-
-  // Ear panels
-  [-1, 1].forEach(s => {
-    const ear = box(0.06, 0.32, 0.4, MAT.joint);
-    ear.position.set(s * 0.46, 0, 0);
-    headGroup.add(ear);
-    const earLed = sphere(0.06, s === -1 ? MAT.ledG : MAT.ledB);
-    earLed.position.set(s * 0.5, 0.1, 0);
-    headGroup.add(earLed);
-  });
-
-  // Antenna
-  const antBase = cyl(0.04, 0.05, 0.35, MAT.joint);
-  antBase.position.set(0, 0.535, 0);
-  headGroup.add(antBase);
-  const antBall = sphere(0.1, MAT.antGlow);
-  antBall.position.set(0, 0.72, 0);
-  headGroup.add(antBall);
-  // Antenna point light
-  const antLight = new THREE.PointLight(0x5eead4, 1.5, 2);
-  antLight.position.copy(antBall.position);
-  headGroup.add(antLight);
-
-  // — Arms (pivot at shoulder) —
-  function makeArm(side) {
-    const pivot = new THREE.Group();
-    pivot.position.set(side * 0.7, 1.1, 0);
-    torsoGroup.add(pivot);
-
-    const upper = box(0.28, 0.52, 0.28, MAT.body);
-    upper.position.y = -0.28;
-    pivot.add(upper);
-
-    const elbow = sphere(0.155, MAT.joint);
-    elbow.position.y = -0.56;
-    pivot.add(elbow);
-
-    const lower = box(0.24, 0.46, 0.24, MAT.body);
-    lower.position.y = -0.84;
-    pivot.add(lower);
-
-    const hand = sphere(0.17, MAT.accent);
-    hand.position.y = -1.1;
-    pivot.add(hand);
-
-    // Knuckle details
-    for (let i = -1; i <= 1; i++) {
-      const knuckle = sphere(0.05, MAT.joint);
-      knuckle.position.set(i * 0.07, -1.24, 0);
-      pivot.add(knuckle);
-    }
-    return pivot;
-  }
-  const armL = makeArm(-1);
-  const armR = makeArm( 1);
-  armL.rotation.z =  0.2;
-  armR.rotation.z = -0.2;
-
-  // — Legs (pivot at hip) —
-  function makeLeg(side) {
-    const pivot = new THREE.Group();
-    pivot.position.set(side * 0.32, 0, 0);
-    robot.add(pivot);
-
-    const hip = sphere(0.2, MAT.joint);
-    hip.position.y = 0;
-    pivot.add(hip);
-
-    const upper = box(0.3, 0.58, 0.3, MAT.body);
-    upper.position.y = -0.38;
-    pivot.add(upper);
-
-    const knee = sphere(0.17, MAT.joint);
-    knee.position.y = -0.72;
-    pivot.add(knee);
-
-    const lower = box(0.26, 0.52, 0.26, MAT.body);
-    lower.position.y = -1.06;
-    pivot.add(lower);
-
-    const foot = box(0.42, 0.18, 0.55, MAT.accent);
-    foot.position.set(side * 0.05, -1.42, 0.08);
-    pivot.add(foot);
-
-    // Foot toe
-    const toe = box(0.34, 0.12, 0.18, MAT.joint);
-    toe.position.set(side * 0.05, -1.5, 0.34);
-    pivot.add(toe);
-
-    return pivot;
-  }
-  const legL = makeLeg(-1);
-  const legR = makeLeg( 1);
-
-  // ── Robot state machine ───────────────────────────────────────
-  const PHASES = { idle: 0, walkIn: 1, dance: 2, walkOut: 3 };
-  let phase = PHASES.idle;
-  let phaseStart = 0;
-  const WALK_DUR  = 2.2;   // seconds to walk in/out
-  const DANCE_DUR = 30;    // seconds of dancing
-  const clock = new THREE.Clock(false);
-
-  const btn = document.getElementById('robot-trigger');
-
-  window.startRobotShow = function() {
-    if (phase !== PHASES.idle) return;
-    btn.disabled = true;
-    btn.textContent = '🕺 On stage...';
-    canvas3d.style.display = 'block';
-    clock.start();
-    phase = PHASES.walkIn;
-    phaseStart = clock.getElapsedTime();
-
-    // Music
-    if (MUSIC_FILE) {
-      const audio = document.getElementById('robot-audio');
-      audio.src = MUSIC_FILE;
-      audio.volume = 0.7;
-      audio.play().catch(() => {});
-    }
-  };
-
-  // ── Animation loop ────────────────────────────────────────────
-  let animFrame;
-  function animate() {
-    animFrame = requestAnimationFrame(animate);
-    if (phase === PHASES.idle) { renderer.render(scene, camera); return; }
-
-    const t  = clock.getElapsedTime();
-    const dt = t - phaseStart;
-
-    // — Phase transitions —
-    if (phase === PHASES.walkIn && dt >= WALK_DUR) {
-      phase = PHASES.dance;
-      phaseStart = t;
-    } else if (phase === PHASES.dance && dt >= DANCE_DUR) {
-      phase = PHASES.walkOut;
-      phaseStart = t;
-    } else if (phase === PHASES.walkOut && dt >= WALK_DUR) {
-      // Done
-      phase = PHASES.idle;
-      robot.position.x = -14;
-      canvas3d.style.display = 'none';
-      btn.disabled = false;
-      btn.innerHTML = '🤖 Watch the robot dance!';
-      if (MUSIC_FILE) document.getElementById('robot-audio').pause();
-      renderer.render(scene, camera);
-      return;
-    }
-
-    // — Walk in —
-    if (phase === PHASES.walkIn) {
-      const p = Math.min(dt / WALK_DUR, 1);
-      const ease = 1 - Math.pow(1 - p, 3);
-      robot.position.x = -14 + ease * 14;
-      // Walk cycle
-      const wc = t * 6;
-      legL.rotation.x =  Math.sin(wc) * 0.45;
-      legR.rotation.x = -Math.sin(wc) * 0.45;
-      armL.rotation.x = -Math.sin(wc) * 0.35;
-      armR.rotation.x =  Math.sin(wc) * 0.35;
-      torsoGroup.rotation.z = Math.sin(wc * 0.5) * 0.04;
-      torsoGroup.position.y = Math.abs(Math.sin(wc)) * 0.06;
-      headGroup.rotation.x = 0;
-      headGroup.rotation.z = 0;
-      resetDancePose();
-    }
-
-    // — Dance —
-    if (phase === PHASES.dance) {
-      robot.position.x = 0;
-      doDance(t, dt);
-    }
-
-    // — Walk out —
-    if (phase === PHASES.walkOut) {
-      const p = Math.min(dt / WALK_DUR, 1);
-      const ease = Math.pow(p, 2);
-      robot.position.x = ease * 15;
-      robot.rotation.y = 0;
-      const wc = t * 6;
-      legL.rotation.x =  Math.sin(wc) * 0.45;
-      legR.rotation.x = -Math.sin(wc) * 0.45;
-      armL.rotation.x = -Math.sin(wc) * 0.35;
-      armR.rotation.x =  Math.sin(wc) * 0.35;
-      torsoGroup.rotation.z = Math.sin(wc * 0.5) * 0.04;
-      torsoGroup.position.y = Math.abs(Math.sin(wc)) * 0.06;
-      headGroup.rotation.x = 0;
-      headGroup.rotation.z = 0;
-      resetDancePose();
-    }
-
-    // Antenna pulse always
-    antLight.intensity = 1 + Math.sin(t * 8) * 0.8;
-    MAT.antGlow.emissiveIntensity = 1.5 + Math.sin(t * 8) * 1;
-
-    // LED pulse
-    leds.forEach((led, i) => {
-      led.material.emissiveIntensity = 0.5 + Math.sin(t * 5 + i * 1.2) * 0.5;
-    });
-
-    renderer.render(scene, camera);
-  }
-
-  function resetDancePose() {
-    torsoGroup.rotation.x = 0;
-    legL.rotation.z = 0; legR.rotation.z = 0;
-    armL.rotation.z =  0.2; armR.rotation.z = -0.2;
-  }
-
-  function doDance(t, dt) {
-    // Body bounce + sway
-    torsoGroup.position.y = Math.abs(Math.sin(t * 4)) * 0.18;
-    torsoGroup.rotation.z = Math.sin(t * 2) * 0.12;
-    torsoGroup.rotation.y = Math.sin(t * 1) * 0.15;
-
-    // Head bop + look around
-    headGroup.rotation.z = Math.sin(t * 4) * 0.18;
-    headGroup.rotation.y = Math.sin(t * 1.5) * 0.25;
-    headGroup.rotation.x = Math.sin(t * 3) * 0.1;
-
-    // Arm flail
-    armL.rotation.x = Math.sin(t * 4 + 0.5) * 0.9;
-    armL.rotation.z =  0.2 + Math.sin(t * 3) * 1.1;
-    armR.rotation.x = Math.sin(t * 4 - 0.5) * 0.9;
-    armR.rotation.z = -0.2 - Math.sin(t * 3) * 1.1;
-
-    // Leg kick
-    legL.rotation.x = Math.sin(t * 4) * 0.4;
-    legR.rotation.x = Math.sin(t * 4 + Math.PI) * 0.4;
-    legL.rotation.z = Math.sin(t * 2) * 0.1;
-    legR.rotation.z = Math.sin(t * 2 + Math.PI) * 0.1;
-
-    // Spin move every ~8 seconds
-    const spinPhase = dt % 8;
-    if (spinPhase > 6.5 && spinPhase < 7.5) {
-      robot.rotation.y += 0.18;
-    }
-
-    // Eye glow pulse
-    MAT.eye.emissiveIntensity = 1 + Math.sin(t * 6) * 0.5;
-
-    // Dynamic lights dance
-    purpleSpot.intensity = 2.5 + Math.sin(t * 3) * 1.5;
-    tealSpot.intensity   = 2   + Math.sin(t * 3 + 1) * 1;
-  }
-
-  animate();
   </script>
 </body>
 </html>
