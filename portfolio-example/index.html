@@ -1123,12 +1123,279 @@
   });
   </script>
 
-  <!-- Three.js 3D Robot -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- Three.js 3D Robot — loaded from reliable CDN -->
+  <script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
   <script>
-  // ── Music config ─────────────────────────────────────────────
-  // To add music: place your MP3 in this folder and set the filename below
   const MUSIC_FILE = 'UMUSH.mp3';
+
+  // Everything is lazy — only runs when button is clicked
+  let robotReady = false;
+  let renderer, scene, camera, clock;
+  let robot, torsoGroup, headGroup, armL, armR, legL, legR, leds, antLight, MAT;
+  let purpleSpot, tealSpot;
+  const PHASES = { idle: 0, walkIn: 1, dance: 2, walkOut: 3 };
+  let phase = PHASES.idle, phaseStart = 0;
+  const WALK_DUR = 2.2, DANCE_DUR = 30;
+
+  window.startRobotShow = function () {
+    if (phase !== PHASES.idle) return;
+
+    const btn = document.getElementById('robot-trigger');
+    const canvas3d = document.getElementById('robot-canvas');
+
+    // Show canvas FIRST so WebGL context can initialize on a visible element
+    canvas3d.style.display = 'block';
+
+    if (!robotReady) {
+      try {
+        if (typeof THREE === 'undefined') throw new Error('Three.js not loaded');
+        initRobot(canvas3d);
+        robotReady = true;
+      } catch (e) {
+        console.error('Robot init failed:', e);
+        canvas3d.style.display = 'none';
+        btn.textContent = '⚠️ Robot failed to load';
+        return;
+      }
+    }
+
+    btn.disabled = true;
+    btn.textContent = '🕺 On stage...';
+    clock.start();
+    phase = PHASES.walkIn;
+    phaseStart = clock.getElapsedTime();
+
+    // Music
+    const audio = document.getElementById('robot-audio');
+    audio.src = MUSIC_FILE;
+    audio.currentTime = 0;
+    audio.volume = 0.75;
+    audio.play().catch(err => console.warn('Audio blocked:', err));
+
+    animate();
+  };
+
+  function initRobot(canvas3d) {
+    renderer = new THREE.WebGLRenderer({ canvas: canvas3d, alpha: true, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    const W = window.innerWidth, H = 320;
+    renderer.setSize(W, H);
+
+    scene  = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(42, W / H, 0.1, 100);
+    camera.position.set(0, 1.8, 7);
+    camera.lookAt(0, 1.2, 0);
+    clock  = new THREE.Clock(false);
+
+    window.addEventListener('resize', () => {
+      const w = window.innerWidth;
+      renderer.setSize(w, H);
+      camera.aspect = w / H;
+      camera.updateProjectionMatrix();
+    });
+
+    // ── Lighting ──────────────────────────────────────────────
+    scene.add(new THREE.AmbientLight(0x8080c0, 0.6));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+    sun.position.set(5, 10, 6); sun.castShadow = true;
+    scene.add(sun);
+    purpleSpot = new THREE.PointLight(0x7c6af7, 3, 12);
+    purpleSpot.position.set(-3, 4, 3); scene.add(purpleSpot);
+    tealSpot = new THREE.PointLight(0x5eead4, 2, 10);
+    tealSpot.position.set(3, 2, 3); scene.add(tealSpot);
+    const rim = new THREE.DirectionalLight(0x5eead4, 0.8);
+    rim.position.set(-5, 3, -4); scene.add(rim);
+
+    // ── Floor ─────────────────────────────────────────────────
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(30, 6),
+      new THREE.MeshStandardMaterial({ color: 0x080810, metalness: 0.5, roughness: 0.8, transparent: true, opacity: 0.4 })
+    );
+    floor.rotation.x = -Math.PI / 2; floor.position.y = -0.01;
+    floor.receiveShadow = true; scene.add(floor);
+
+    // ── Materials ─────────────────────────────────────────────
+    MAT = {
+      body:    new THREE.MeshStandardMaterial({ color: 0x1e1b3a, metalness: 0.85, roughness: 0.15 }),
+      joint:   new THREE.MeshStandardMaterial({ color: 0x2d2855, metalness: 0.9,  roughness: 0.1  }),
+      accent:  new THREE.MeshStandardMaterial({ color: 0x7c6af7, metalness: 0.95, roughness: 0.05 }),
+      eye:     new THREE.MeshStandardMaterial({ color: 0x5eead4, emissive: 0x5eead4, emissiveIntensity: 1.2 }),
+      panel:   new THREE.MeshStandardMaterial({ color: 0x0d0b20, metalness: 0.6,  roughness: 0.4  }),
+      ledG:    new THREE.MeshStandardMaterial({ color: 0x4ade80, emissive: 0x4ade80, emissiveIntensity: 1 }),
+      ledB:    new THREE.MeshStandardMaterial({ color: 0x60a5fa, emissive: 0x60a5fa, emissiveIntensity: 1 }),
+      ledP:    new THREE.MeshStandardMaterial({ color: 0xc084fc, emissive: 0xc084fc, emissiveIntensity: 1 }),
+      ledY:    new THREE.MeshStandardMaterial({ color: 0xfde047, emissive: 0xfde047, emissiveIntensity: 1 }),
+      antGlow: new THREE.MeshStandardMaterial({ color: 0x5eead4, emissive: 0x5eead4, emissiveIntensity: 2 }),
+    };
+
+    function bx(w,h,d,mat) { const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat); m.castShadow=true; return m; }
+    function sp(r,mat)      { const m = new THREE.Mesh(new THREE.SphereGeometry(r,24,24), mat); m.castShadow=true; return m; }
+    function cy(rt,rb,h,mat){ const m = new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,16), mat); m.castShadow=true; return m; }
+
+    // ── Robot ──────────────────────────────────────────────────
+    robot = new THREE.Group();
+    robot.position.x = -14;
+    scene.add(robot);
+
+    torsoGroup = new THREE.Group();
+    robot.add(torsoGroup);
+
+    // Body
+    const bodyMesh = bx(1.1, 1.3, 0.7, MAT.body); bodyMesh.position.y = 0.65; torsoGroup.add(bodyMesh);
+    const panel2 = bx(0.58, 0.48, 0.06, MAT.panel); panel2.position.set(0, 0.72, 0.375); torsoGroup.add(panel2);
+    const stripe = bx(0.9, 0.06, 0.72, MAT.accent); stripe.position.set(0, 0.32, 0); torsoGroup.add(stripe);
+    [-1,1].forEach(s => { const pad = bx(0.18,0.22,0.75,MAT.accent); pad.position.set(s*0.635,1.12,0); torsoGroup.add(pad); });
+
+    // LEDs
+    leds = [[-0.12,0.84],[0.12,0.84],[-0.12,0.64],[0.12,0.64]].map((p,i) => {
+      const led = sp(0.065, [MAT.ledG,MAT.ledB,MAT.ledP,MAT.ledY][i]);
+      led.position.set(p[0], p[1], 0.41); torsoGroup.add(led); return led;
+    });
+
+    // Neck
+    const neck = cy(0.13,0.15,0.18,MAT.joint); neck.position.y = 1.34; torsoGroup.add(neck);
+
+    // Head
+    headGroup = new THREE.Group(); headGroup.position.y = 1.56; torsoGroup.add(headGroup);
+    headGroup.add(bx(0.85,0.72,0.72,MAT.body));
+    const visor = bx(0.86,0.22,0.06, new THREE.MeshStandardMaterial({color:0x0d1a2e,metalness:0.3,roughness:0.05,transparent:true,opacity:0.85}));
+    visor.position.set(0,0.08,0.375); headGroup.add(visor);
+
+    const eyeL = sp(0.11,MAT.eye); eyeL.position.set(-0.2,0.1,0.375); headGroup.add(eyeL);
+    const eyeR = sp(0.11,MAT.eye); eyeR.position.set( 0.2,0.1,0.375); headGroup.add(eyeR);
+    [eyeL,eyeR].forEach(e => { const p = sp(0.055,new THREE.MeshStandardMaterial({color:0x020210})); p.position.set(0,0,0.09); e.add(p); });
+
+    const mouth = bx(0.38,0.06,0.04,MAT.accent); mouth.position.set(0,-0.18,0.375); headGroup.add(mouth);
+    [-1,1].forEach(s => {
+      const ear = bx(0.06,0.32,0.4,MAT.joint); ear.position.set(s*0.46,0,0); headGroup.add(ear);
+      const eL = sp(0.06, s===-1?MAT.ledG:MAT.ledB); eL.position.set(s*0.5,0.1,0); headGroup.add(eL);
+    });
+
+    // Antenna
+    const antBase = cy(0.04,0.05,0.35,MAT.joint); antBase.position.set(0,0.535,0); headGroup.add(antBase);
+    const antBall = sp(0.1,MAT.antGlow); antBall.position.set(0,0.72,0); headGroup.add(antBall);
+    antLight = new THREE.PointLight(0x5eead4,1.5,2); antLight.position.copy(antBall.position); headGroup.add(antLight);
+
+    // Arms
+    function makeArm(side) {
+      const pivot = new THREE.Group(); pivot.position.set(side*0.7,1.1,0); torsoGroup.add(pivot);
+      const upper = bx(0.28,0.52,0.28,MAT.body); upper.position.y=-0.28; pivot.add(upper);
+      const elbow = sp(0.155,MAT.joint); elbow.position.y=-0.56; pivot.add(elbow);
+      const lower = bx(0.24,0.46,0.24,MAT.body); lower.position.y=-0.84; pivot.add(lower);
+      const hand = sp(0.17,MAT.accent); hand.position.y=-1.1; pivot.add(hand);
+      for(let i=-1;i<=1;i++){ const k=sp(0.05,MAT.joint); k.position.set(i*0.07,-1.24,0); pivot.add(k); }
+      return pivot;
+    }
+    armL = makeArm(-1); armL.rotation.z =  0.2;
+    armR = makeArm( 1); armR.rotation.z = -0.2;
+
+    // Legs
+    function makeLeg(side) {
+      const pivot = new THREE.Group(); pivot.position.set(side*0.32,0,0); robot.add(pivot);
+      const hip = sp(0.2,MAT.joint); hip.position.y=0; pivot.add(hip);
+      const upper = bx(0.3,0.58,0.3,MAT.body); upper.position.y=-0.38; pivot.add(upper);
+      const knee = sp(0.17,MAT.joint); knee.position.y=-0.72; pivot.add(knee);
+      const lower = bx(0.26,0.52,0.26,MAT.body); lower.position.y=-1.06; pivot.add(lower);
+      const foot = bx(0.42,0.18,0.55,MAT.accent); foot.position.set(side*0.05,-1.42,0.08); pivot.add(foot);
+      const toe = bx(0.34,0.12,0.18,MAT.joint); toe.position.set(side*0.05,-1.5,0.34); pivot.add(toe);
+      return pivot;
+    }
+    legL = makeLeg(-1);
+    legR = makeLeg( 1);
+  }
+
+  function animate() {
+    if (phase === PHASES.idle) return; // stop loop when done
+    requestAnimationFrame(animate);
+
+    const t  = clock.getElapsedTime();
+    const dt = t - phaseStart;
+    const btn = document.getElementById('robot-trigger');
+
+    // Phase transitions
+    if      (phase === PHASES.walkIn  && dt >= WALK_DUR)  { phase = PHASES.dance;   phaseStart = t; }
+    else if (phase === PHASES.dance   && dt >= DANCE_DUR) { phase = PHASES.walkOut; phaseStart = t; }
+    else if (phase === PHASES.walkOut && dt >= WALK_DUR)  {
+      phase = PHASES.idle;
+      robot.position.x = -14;
+      document.getElementById('robot-canvas').style.display = 'none';
+      document.getElementById('robot-audio').pause();
+      btn.disabled = false;
+      btn.innerHTML = '🤖 Watch the robot dance!';
+      renderer.render(scene, camera);
+      return;
+    }
+
+    // Walk in
+    if (phase === PHASES.walkIn) {
+      const ease = 1 - Math.pow(1 - Math.min(dt/WALK_DUR,1), 3);
+      robot.position.x = -14 + ease * 14;
+      walkCycle(t); resetDancePose();
+    }
+    // Dance
+    if (phase === PHASES.dance) {
+      robot.position.x = 0;
+      doDance(t, dt);
+    }
+    // Walk out
+    if (phase === PHASES.walkOut) {
+      robot.position.x = Math.pow(Math.min(dt/WALK_DUR,1), 2) * 15;
+      robot.rotation.y = 0;
+      walkCycle(t); resetDancePose();
+    }
+
+    // Always: antenna + LED pulse
+    antLight.intensity = 1 + Math.sin(t*8)*0.8;
+    MAT.antGlow.emissiveIntensity = 1.5 + Math.sin(t*8);
+    leds.forEach((l,i) => { l.material.emissiveIntensity = 0.5 + Math.sin(t*5+i*1.2)*0.5; });
+
+    renderer.render(scene, camera);
+  }
+
+  function walkCycle(t) {
+    const wc = t * 6;
+    legL.rotation.x =  Math.sin(wc)*0.45;
+    legR.rotation.x = -Math.sin(wc)*0.45;
+    armL.rotation.x = -Math.sin(wc)*0.35;
+    armR.rotation.x =  Math.sin(wc)*0.35;
+    torsoGroup.rotation.z = Math.sin(wc*0.5)*0.04;
+    torsoGroup.position.y = Math.abs(Math.sin(wc))*0.06;
+    headGroup.rotation.x = 0; headGroup.rotation.z = 0; headGroup.rotation.y = 0;
+  }
+
+  function resetDancePose() {
+    torsoGroup.rotation.x = 0;
+    legL.rotation.z = 0; legR.rotation.z = 0;
+    armL.rotation.z =  0.2; armR.rotation.z = -0.2;
+  }
+
+  function doDance(t, dt) {
+    torsoGroup.position.y = Math.abs(Math.sin(t*4))*0.18;
+    torsoGroup.rotation.z = Math.sin(t*2)*0.12;
+    torsoGroup.rotation.y = Math.sin(t*1)*0.15;
+    headGroup.rotation.z  = Math.sin(t*4)*0.18;
+    headGroup.rotation.y  = Math.sin(t*1.5)*0.25;
+    headGroup.rotation.x  = Math.sin(t*3)*0.1;
+    armL.rotation.x =  Math.sin(t*4+0.5)*0.9;
+    armL.rotation.z =  0.2 + Math.sin(t*3)*1.1;
+    armR.rotation.x =  Math.sin(t*4-0.5)*0.9;
+    armR.rotation.z = -0.2 - Math.sin(t*3)*1.1;
+    legL.rotation.x = Math.sin(t*4)*0.4;
+    legR.rotation.x = Math.sin(t*4+Math.PI)*0.4;
+    legL.rotation.z = Math.sin(t*2)*0.1;
+    legR.rotation.z = Math.sin(t*2+Math.PI)*0.1;
+    // Spin every ~8s
+    if ((dt%8) > 6.5 && (dt%8) < 7.5) robot.rotation.y += 0.18;
+    MAT.eye.emissiveIntensity = 1 + Math.sin(t*6)*0.5;
+    purpleSpot.intensity = 2.5 + Math.sin(t*3)*1.5;
+    tealSpot.intensity   = 2   + Math.sin(t*3+1);
+  }
+  </script>
+</body>
+</html>
 
   // ── Scene setup ──────────────────────────────────────────────
   const canvas3d = document.getElementById('robot-canvas');
