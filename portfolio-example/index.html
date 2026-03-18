@@ -1056,7 +1056,7 @@
   });
 
   // ── Typing animation ─────────────────────────────────────────
-  const phrases = ['full-stack developer.', 'CS sophomore.', 'hackathon winner.', 'AI enthusiast.', 'problem solver.'];
+  const phrases = ['full-stack developer.', 'EE sophomore.', 'hackathon winner.', 'AI enthusiast.', 'problem solver.'];
   let pi = 0, ci = 0, deleting = false;
   const el = document.getElementById('typed');
 
@@ -1213,9 +1213,9 @@
     renderer.setSize(W, H);
 
     scene  = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(48, W / H, 0.1, 200);
-    camera.position.set(0, 4.5, 9);
-    camera.lookAt(0, 3.8, 0);
+    camera = new THREE.PerspectiveCamera(52, W / H, 0.1, 200);
+    camera.position.set(0, 4.5, 11);
+    camera.lookAt(0, 3.5, 0);
     clock  = new THREE.Clock(false);
 
     window.addEventListener('resize', () => {
