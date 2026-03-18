@@ -36,6 +36,19 @@
       transition: left 0.08s, top 0.08s;
       z-index: 0;
     }
+    .cursor-glow.robot-mode {
+      width: 700px; height: 700px;
+      background: radial-gradient(circle, rgba(124,106,247,0.28) 0%, rgba(94,234,212,0.10) 45%, transparent 70%);
+      transition: left 0.18s, top 0.18s;
+      z-index: 52;
+      filter: blur(2px);
+    }
+    #star-canvas {
+      position: fixed; inset: 0;
+      width: 100%; height: 100%;
+      pointer-events: none; display: none;
+      z-index: 51;
+    }
 
     /* ─── Canvas particles ────────────────────────────────────── */
     #particles {
@@ -974,6 +987,7 @@
 
   <!-- ── 3D ROBOT OVERLAY ──────────────────────────────────────── -->
   <canvas id="robot-canvas"></canvas>
+  <canvas id="star-canvas"></canvas>
   <button id="robot-trigger" onclick="startRobotShow()">🤖 Watch the robot dance!</button>
   <audio id="robot-audio"></audio>
 
@@ -1137,6 +1151,8 @@
   let phase = PHASES.idle, phaseStart = 0;
   const WALK_DUR = 2.2;
   let songEnded = false;
+  let starCtx = null;
+  const starParticles = [];
 
   window.startRobotShow = function () {
     if (phase !== PHASES.idle) return;
@@ -1146,6 +1162,13 @@
 
     // Show canvas FIRST so WebGL context can initialize on a visible element
     canvas3d.style.display = 'block';
+    const starCanvas = document.getElementById('star-canvas');
+    starCanvas.width  = window.innerWidth;
+    starCanvas.height = window.innerHeight;
+    starCanvas.style.display = 'block';
+    starCtx = starCanvas.getContext('2d');
+    starParticles.length = 0;
+    document.getElementById('glow').classList.add('robot-mode');
 
     if (!robotReady) {
       try {
@@ -1188,9 +1211,9 @@
     renderer.setSize(W, H);
 
     scene  = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(42, W / H, 0.1, 100);
-    camera.position.set(0, 1.8, 7);
-    camera.lookAt(0, 1.2, 0);
+    camera = new THREE.PerspectiveCamera(42, W / H, 0.1, 200);
+    camera.position.set(0, 4.0, 15);
+    camera.lookAt(0, 2.8, 0);
     clock  = new THREE.Clock(false);
 
     window.addEventListener('resize', () => {
@@ -1240,7 +1263,8 @@
 
     // ── Robot ──────────────────────────────────────────────────
     robot = new THREE.Group();
-    robot.position.x = -14;
+    robot.position.x = -28;
+    robot.scale.set(2, 2, 2);
     scene.add(robot);
 
     torsoGroup = new THREE.Group();
@@ -1323,9 +1347,12 @@
     else if (phase === PHASES.dance   && songEnded)       { phase = PHASES.walkOut; phaseStart = t; }
     else if (phase === PHASES.walkOut && dt >= WALK_DUR)  {
       phase = PHASES.idle;
-      robot.position.x = -14;
+      robot.position.x = -28;
       document.getElementById('robot-canvas').style.display = 'none';
+      document.getElementById('star-canvas').style.display = 'none';
       document.getElementById('robot-audio').pause();
+      document.getElementById('glow').classList.remove('robot-mode');
+      starParticles.length = 0;
       btn.disabled = false;
       btn.innerHTML = '🤖 Watch the robot dance!';
       renderer.render(scene, camera);
@@ -1335,17 +1362,16 @@
     // Walk in
     if (phase === PHASES.walkIn) {
       const ease = 1 - Math.pow(1 - Math.min(dt/WALK_DUR,1), 3);
-      robot.position.x = -14 + ease * 14;
+      robot.position.x = -28 + ease * 28;
       walkCycle(t); resetDancePose();
     }
     // Dance
     if (phase === PHASES.dance) {
-      robot.position.x = 0;
       doDance(t, dt);
     }
     // Walk out
     if (phase === PHASES.walkOut) {
-      robot.position.x = Math.pow(Math.min(dt/WALK_DUR,1), 2) * 15;
+      robot.position.x = Math.pow(Math.min(dt/WALK_DUR,1), 2) * 30;
       robot.rotation.y = 0;
       walkCycle(t); resetDancePose();
     }
@@ -1356,6 +1382,25 @@
     leds.forEach((l,i) => { l.material.emissiveIntensity = 0.5 + Math.sin(t*5+i*1.2)*0.5; });
 
     renderer.render(scene, camera);
+
+    // ── Glow + star trails follow the robot ──────────────────────
+    if (phase !== PHASES.idle) {
+      const rp = new THREE.Vector3();
+      robot.getWorldPosition(rp);
+      rp.y += 1.4; // aim at robot's chest
+      rp.project(camera);
+      const cw = window.innerWidth, ch = window.innerHeight;
+      const canvasTop = ch - 320;
+      const sx = (rp.x  + 1) / 2 * cw;
+      const sy = canvasTop + ((-rp.y + 1) / 2 * 320);
+      const glowEl = document.getElementById('glow');
+      glowEl.style.left = sx + 'px';
+      glowEl.style.top  = sy + 'px';
+      if (phase === PHASES.dance && starCtx) {
+        emitStars(sx, sy);
+        updateStars(starCtx, cw, ch);
+      }
+    }
   }
 
   function walkCycle(t) {
@@ -1375,7 +1420,62 @@
     armL.rotation.z =  0.2; armR.rotation.z = -0.2;
   }
 
+  // ── Star trail particle system ────────────────────────────────
+  function emitStars(sx, sy) {
+    const colors = [270, 186, 210, 45]; // purple, teal, blue, gold
+    for (let i = 0; i < 4; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 0.6 + Math.random() * 2;
+      starParticles.push({
+        x: sx + (Math.random()-0.5)*50,
+        y: sy + (Math.random()-0.5)*30,
+        vx: Math.cos(angle) * speed * 0.6,
+        vy: -(0.8 + Math.random() * 2.5),
+        r: 1.5 + Math.random() * 3.5,
+        life: 1,
+        decay: 0.010 + Math.random() * 0.018,
+        hue: colors[Math.floor(Math.random() * colors.length)],
+      });
+    }
+  }
+
+  function drawStar4(ctx, x, y, r) {
+    ctx.beginPath();
+    for (let j = 0; j < 8; j++) {
+      const a = (j / 8) * Math.PI * 2 - Math.PI / 2;
+      const rad = j % 2 === 0 ? r : r * 0.38;
+      j === 0 ? ctx.moveTo(x + Math.cos(a)*rad, y + Math.sin(a)*rad)
+              : ctx.lineTo(x + Math.cos(a)*rad, y + Math.sin(a)*rad);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function updateStars(ctx, W, H) {
+    ctx.clearRect(0, 0, W, H);
+    for (let i = starParticles.length - 1; i >= 0; i--) {
+      const p = starParticles[i];
+      p.x  += p.vx;
+      p.y  += p.vy;
+      p.vy += 0.03; // gentle gravity
+      p.life -= p.decay;
+      if (p.life <= 0) { starParticles.splice(i, 1); continue; }
+      const size = p.r * p.life;
+      ctx.save();
+      ctx.globalAlpha = p.life * 0.9;
+      ctx.fillStyle   = `hsl(${p.hue}, 100%, 72%)`;
+      ctx.shadowColor = `hsl(${p.hue}, 100%, 62%)`;
+      ctx.shadowBlur  = size * 5;
+      drawStar4(ctx, p.x, p.y, size * 2);
+      ctx.restore();
+    }
+  }
+
   function doDance(t, dt) {
+    // Moonwalk: glide across the stage left↔right
+    robot.position.x = Math.sin(t * 0.35) * 5;
+    robot.rotation.y = Math.cos(t * 0.35) * 0.3; // lean into direction of travel
+
     torsoGroup.position.y = Math.abs(Math.sin(t*4))*0.18;
     torsoGroup.rotation.z = Math.sin(t*2)*0.12;
     torsoGroup.rotation.y = Math.sin(t*1)*0.15;
@@ -1386,15 +1486,19 @@
     armL.rotation.z =  0.2 + Math.sin(t*3)*1.1;
     armR.rotation.x =  Math.sin(t*4-0.5)*0.9;
     armR.rotation.z = -0.2 - Math.sin(t*3)*1.1;
+    // Moonwalk legs — alternating glide
     legL.rotation.x = Math.sin(t*4)*0.4;
     legR.rotation.x = Math.sin(t*4+Math.PI)*0.4;
-    legL.rotation.z = Math.sin(t*2)*0.1;
-    legR.rotation.z = Math.sin(t*2+Math.PI)*0.1;
+    legL.rotation.z = Math.sin(t*2)*0.12;
+    legR.rotation.z = Math.sin(t*2+Math.PI)*0.12;
     // Spin every ~8s
     if ((dt%8) > 6.5 && (dt%8) < 7.5) robot.rotation.y += 0.18;
     MAT.eye.emissiveIntensity = 1 + Math.sin(t*6)*0.5;
     purpleSpot.intensity = 2.5 + Math.sin(t*3)*1.5;
     tealSpot.intensity   = 2   + Math.sin(t*3+1);
+    // Stage spotlights track the robot
+    purpleSpot.position.x = robot.position.x - 2;
+    tealSpot.position.x   = robot.position.x + 2;
   }
   </script>
 </body>
