@@ -1,42 +1,52 @@
 """
-scan_lookup.py
---------------
-PART 4 — RFID SCAN PROGRAM (TERMINAL)
+╔══════════════════════════════════════════════════════════════╗
+║  scan_lookup.py                                              ║
+║  What this file does:                                        ║
+║    Runs a loop waiting for RFID scans in the terminal.       ║
+║    When a bracelet is scanned, it:                           ║
+║      1. Finds the matching student in the database           ║
+║      2. Prints the student's info on screen                  ║
+║      3. Saves the scan to the attendance log                 ║
+║                                                              ║
+║  NOTE: START_HERE.py → Option 1 runs this for you.          ║
+║  Manual run:  python scan_lookup.py                          ║
+╚══════════════════════════════════════════════════════════════╝
 
-This script runs in a loop and waits for the RFID reader to type a UID.
-When a UID is received it:
-  1. Looks up the student linked to that tag.
-  2. Prints the student's ID, name, department, and section.
-  3. Logs the scan into the scan_events table.
-  4. Shows "Unknown tag" if the UID is not registered.
-
-Type "exit" to quit.
-
-HOW THE RFID READER WORKS:
-  The USB RFID reader acts like a keyboard (HID device).
-  When a bracelet is held near the reader it automatically
-  types the tag's UID and presses Enter.
-  Python's input() captures exactly that — it waits for Enter.
-
-Usage:
-    python scan_lookup.py
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+HOW THE RFID USB READER WORKS:
+  It looks like a USB stick.
+  When you plug it in, your computer thinks it's a keyboard.
+  When a student holds their bracelet near the reader,
+  it automatically TYPES the bracelet's UID (like "A1B2C3D4")
+  and presses ENTER — just like someone typing on a keyboard.
+  Python's  input()  function waits for that typed text.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 
-import sqlite3
-from datetime import datetime
+import sqlite3              # talks to the database
+from datetime import datetime   # gets the current date and time
 
 DB_NAME = "attendance.db"
 
 
-def get_student_by_uid(cursor, uid):
+def find_student_by_uid(cursor, uid):
     """
-    Looks up a student using the tag UID.
-    Returns a dict with student info, or None if not found.
+    Searches the database for a student linked to this UID.
 
-    The SQL JOIN connects three tables:
-        rfid_tags  →  students
-    so we can get the student name from just the UID.
+    HOW:
+      We use a SQL JOIN — this means we connect two tables together.
+      rfid_tags has the uid.
+      students has the name and department.
+      JOIN links them where student_id matches in both tables.
+
+    RETURNS:
+      A dictionary with student info, or None if not found.
     """
+
+    # This is a SQL query — a question we ask the database.
+    # SELECT means "give me these columns"
+    # FROM ... JOIN ... means "look in these two connected tables"
+    # WHERE means "but only rows where this condition is true"
     cursor.execute("""
         SELECT
             s.student_id,
@@ -46,16 +56,18 @@ def get_student_by_uid(cursor, uid):
             t.tag_id,
             t.label
         FROM rfid_tags AS t
-        -- JOIN links each tag row to its matching student row.
-        JOIN students AS s ON t.student_id = s.student_id
+        JOIN students  AS s ON t.student_id = s.student_id
         WHERE t.uid = ?
     """, (uid,))
+    # The (uid,) at the end fills in the ? placeholder — safely, without SQL injection.
 
-    row = cursor.fetchone()   # Returns one row or None
+    row = cursor.fetchone()   # fetchone() gets the first (and only) result row
+
     if row is None:
-        return None
+        return None   # No match found — bracelet not registered
 
-    # Turn the row into a readable dictionary.
+    # Turn the row (a list of values) into a dictionary (named values)
+    # so we can access them like  student["full_name"]  instead of  row[1]
     return {
         "student_id": row[0],
         "full_name":  row[1],
@@ -66,78 +78,90 @@ def get_student_by_uid(cursor, uid):
     }
 
 
-def log_scan(cursor, tag_id):
+def save_scan(cursor, connection, tag_id):
     """
-    Inserts a new row into scan_events for the given tag_id.
-    SQLite fills in scanned_at automatically (see table definition).
+    Inserts one new row into scan_events to record this attendance.
+    The database automatically fills in the timestamp.
     """
     cursor.execute("""
         INSERT INTO scan_events (tag_id)
         VALUES (?)
     """, (tag_id,))
-
-
-def print_separator():
-    print("─" * 50)
+    connection.commit()   # commit = "save it to the file right now"
 
 
 def main():
-    # Open a single database connection for the whole session.
+    # Open the database (keep it open for the whole session)
     connection = sqlite3.connect(DB_NAME)
     cursor = connection.cursor()
 
-    print("=" * 50)
+    print("=" * 52)
     print("  RFID ATTENDANCE SCANNER — TERMINAL MODE")
-    print("=" * 50)
-    print("Scan a bracelet OR type a UID and press Enter.")
-    print('Type "exit" to quit.\n')
+    print("=" * 52)
+    print("  Hold a bracelet near the reader, or type a UID.")
+    print('  Type  exit  to return to the menu.\n')
 
+    # ─────────────────────────────────────────────────────────────────────────
+    # THE MAIN LOOP
+    # "while True" means: keep running forever until we say break or exit.
+    # This is why the program keeps waiting for the next scan.
+    # ─────────────────────────────────────────────────────────────────────────
     while True:
+
         try:
-            # input() blocks here and waits for a line of text.
+            # input() stops here and waits for the user to press Enter.
             # The RFID reader types the UID and presses Enter automatically.
-            uid = input("Scan tag (or type UID): ").strip()
+            uid = input("  Scan bracelet ▶ ").strip()
+            #                                .strip() removes any spaces or
+            #                                newline characters from the edges
+
         except (EOFError, KeyboardInterrupt):
-            # Ctrl+C or end-of-input exits gracefully.
-            print("\nScanner stopped.")
+            # EOFError = input stream ended unexpectedly
+            # KeyboardInterrupt = user pressed Ctrl+C
+            # Both mean: stop the loop gracefully
+            print("\n  Scanner stopped.")
             break
 
-        # ── Handle exit command ──────────────────
-        if uid.lower() == "exit":
-            print("Goodbye!")
-            break
-
-        # ── Ignore empty input (accidental Enter) ─
+        # ── Skip empty lines ───────────────────────────────────────────────
         if not uid:
-            continue
+            continue   # "continue" jumps back to the top of the while loop
 
-        print_separator()
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]  UID: {uid}")
+        # ── Handle exit command ────────────────────────────────────────────
+        if uid.lower() == "exit":
+            # .lower() converts to lowercase so "EXIT", "Exit", "exit" all work
+            print("  Returning to menu...")
+            break
 
-        # ── Look up the student ──────────────────
-        student = get_student_by_uid(cursor, uid)
+        # ── Print a separator line with timestamp ──────────────────────────
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"\n  ── {now} ─────────────────────────")
+
+        # ── Look up the student ────────────────────────────────────────────
+        student = find_student_by_uid(cursor, uid)
 
         if student:
-            # ── Known tag: print info and log ────
-            print(f"  Student ID : {student['student_id']}")
-            print(f"  Name       : {student['full_name']}")
-            print(f"  Department : {student['department']}")
-            print(f"  Section    : {student['section']}")
-            print(f"  Bracelet   : {student['label']}")
+            # ── FOUND ──────────────────────────────────────────────────────
+            print(f"  ✔  ATTENDANCE LOGGED")
+            print(f"     Student ID  :  {student['student_id']}")
+            print(f"     Name        :  {student['full_name']}")
+            print(f"     Department  :  {student['department']}")
+            print(f"     Section     :  {student['section']}")
+            print(f"     Bracelet    :  {student['label'] or '—'}")
 
-            log_scan(cursor, student["tag_id"])
-            connection.commit()   # Save the scan to disk immediately.
-            print("  ✔ Attendance logged.")
+            save_scan(cursor, connection, student["tag_id"])
+
         else:
-            # ── Unknown tag ──────────────────────
-            print("  ✘ Unknown tag — not registered in the system.")
-            print("    Run  python register_tag.py  to register it.")
+            # ── NOT FOUND ──────────────────────────────────────────────────
+            print(f"  ✘  Unknown tag: {uid}")
+            print("     This bracelet is not registered.")
+            print("     Go to the main menu → option 2 to register it.")
 
-        print_separator()
         print()
 
     connection.close()
 
 
+# Runs only when executed directly: python scan_lookup.py
+# When imported by START_HERE.py, main() is called from there instead.
 if __name__ == "__main__":
     main()

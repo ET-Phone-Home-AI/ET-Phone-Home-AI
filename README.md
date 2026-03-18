@@ -1,244 +1,417 @@
-# RFID Student Attendance System
-
-A complete, beginner-friendly RFID attendance system built with Python, SQLite, and Flask.
-The USB RFID reader acts as a keyboard (HID device) — it automatically types the tag UID
-into whatever input field is focused.
+# 📡 RFID Student Attendance System
+### Complete Beginner's Guide — Read This First!
 
 ---
 
-## Project Structure
+## 🙋 Never coded before? That's okay. Read this whole page first.
 
-```
-attendance.db        ← SQLite database (created by setup_database.py)
-setup_database.py    ← Creates the database and tables
-seed_data.py         ← Inserts 5 sample students and tags for testing
-scan_lookup.py       ← Terminal scanner: scan → look up → log
-register_tag.py      ← Links a physical bracelet UID to a student
-app.py               ← Flask web interface for scanning
-```
+This guide will tell you **exactly** what to click, what to type, and what to expect.
+No guessing. No skipping steps. Just follow along.
 
 ---
 
-## PART 1 — Database Design
+## What Does This System Do?
 
-### Entities and Relationships
+Imagine this:
+1. A student walks up and holds their RFID wristband near a USB reader.
+2. The reader beeps. It automatically types a code into your computer.
+3. The screen instantly shows: **"Alice Reyes — Computer Science — Section 3A — LOGGED"**
+4. That scan is saved forever in a database file on your computer.
 
-```
-students ──< rfid_tags ──< scan_events
-  (1)          (1..*)          (*)
-```
-
-| Table        | Purpose                                      | Primary Key             |
-|--------------|----------------------------------------------|-------------------------|
-| students     | One row per student (name, dept, section)    | student_id (TEXT)       |
-| rfid_tags    | One row per physical bracelet                | tag_id (INTEGER AUTO)   |
-| scan_events  | One row per scan event (timestamp + tag)     | scan_id (INTEGER AUTO)  |
-
-### Foreign Keys
-
-| Table       | Column     | References              |
-|-------------|------------|-------------------------|
-| rfid_tags   | student_id | students(student_id)    |
-| scan_events | tag_id     | rfid_tags(tag_id)       |
-
-### Why Separate Tables? (Normalization)
-
-- **No repeated data**: The student's name is stored once in `students`. All scans
-  reference the tag_id — they do not repeat the name or department in every row.
-- **Easy updates**: Changing a student's section means updating ONE row in `students`,
-  not touching hundreds of scan records.
-- **Clean queries**: Use SQL JOIN to combine tables when needed.
+That's it. That's the whole system.
 
 ---
 
-## PART 2 — SQL Statements
+## What Is Each File? (The Big Picture)
 
-### CREATE TABLE
+> **You only ever need to run ONE file: `START_HERE.py`**
+> It calls all the others for you automatically.
 
-```sql
-CREATE TABLE IF NOT EXISTS students (
-    student_id  TEXT PRIMARY KEY,
-    full_name   TEXT NOT NULL,
-    department  TEXT NOT NULL,
-    section     TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS rfid_tags (
-    tag_id      INTEGER PRIMARY KEY AUTOINCREMENT,
-    student_id  TEXT NOT NULL UNIQUE,
-    uid         TEXT NOT NULL UNIQUE,
-    label       TEXT,
-    created_at  TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (student_id) REFERENCES students(student_id)
-);
-
-CREATE TABLE IF NOT EXISTS scan_events (
-    scan_id     INTEGER PRIMARY KEY AUTOINCREMENT,
-    tag_id      INTEGER NOT NULL,
-    scanned_at  TEXT DEFAULT (datetime('now')),
-    notes       TEXT,
-    FOREIGN KEY (tag_id) REFERENCES rfid_tags(tag_id)
-);
+```
+Your folder looks like this:
+─────────────────────────────────────────────────────
+ START_HERE.py        ← 🟢 YOU RUN THIS. Only this.
+ ─────────────────────────────────────────────────────
+ setup_database.py    ← Creates the database file
+ seed_data.py         ← Fills in sample student data
+ scan_lookup.py       ← Runs the terminal scanner
+ register_tag.py      ← Links a bracelet to a student
+ app.py               ← Runs the website in a browser
+ ─────────────────────────────────────────────────────
+ attendance.db        ← 🗄️ Created automatically. Your data lives here.
+ requirements.txt     ← List of libraries to install
+─────────────────────────────────────────────────────
 ```
 
-### Sample INSERT
+### How the files talk to each other:
 
-```sql
--- Students
-INSERT INTO students VALUES ('STU001', 'Alice Reyes',   'Computer Science',       '3A');
-INSERT INTO students VALUES ('STU002', 'Ben Santos',    'Information Technology', '3B');
-INSERT INTO students VALUES ('STU003', 'Clara Mendoza', 'Computer Science',       '3A');
-INSERT INTO students VALUES ('STU004', 'David Cruz',    'Electronics',            '2C');
-INSERT INTO students VALUES ('STU005', 'Eva Lim',       'Information Technology', '2A');
-
--- RFID Tags
-INSERT INTO rfid_tags (student_id, uid, label) VALUES ('STU001', 'A1B2C3D4', 'B001');
-INSERT INTO rfid_tags (student_id, uid, label) VALUES ('STU002', 'E5F6A7B8', 'B002');
-INSERT INTO rfid_tags (student_id, uid, label) VALUES ('STU003', 'C9D0E1F2', 'B003');
-INSERT INTO rfid_tags (student_id, uid, label) VALUES ('STU004', 'G3H4I5J6', 'B004');
-INSERT INTO rfid_tags (student_id, uid, label) VALUES ('STU005', 'K7L8M9N0', 'B005');
 ```
+START_HERE.py
+    │
+    ├── auto-runs → setup_database.py  (creates attendance.db)
+    ├── auto-runs → seed_data.py       (fills sample data)
+    │
+    ├── Menu Option 1 → scan_lookup.py   (scans bracelets in terminal)
+    ├── Menu Option 2 → register_tag.py  (links bracelet to student)
+    ├── Menu Option 3 → shows attendance log from attendance.db
+    ├── Menu Option 4 → app.py           (opens the website)
+    └── Menu Option 5 → shows student list from attendance.db
+```
+
+**All of them read/write to the same `attendance.db` file.**
+Think of `attendance.db` as the shared notebook everyone writes in.
 
 ---
 
-## PART 7 — Step-by-Step Usage Guide
+## What Is Flask?
 
-### Prerequisites
+Flask is a Python library that makes it possible for Python to run a website.
 
-```bash
-# Python 3 is required (check your version)
+Normally a website needs:
+- A server (a powerful computer)
+- HTML files
+- A complicated setup
+
+Flask does all of that for you in your own computer. When you run `app.py`:
+- Flask starts a tiny server **on your laptop**
+- You open your browser and go to `http://127.0.0.1:5000`
+- `127.0.0.1` means **"this computer"** (not the internet — just yours)
+- `5000` is the "door number" (called a port)
+- The RFID reader types into the webpage just like it types in the terminal
+
+---
+
+## What Is a Database?
+
+A database is a file that stores data in organized tables.
+Ours is called `attendance.db`. Think of it like an Excel file with 3 sheets:
+
+| Sheet name    | What it stores                            |
+|---------------|-------------------------------------------|
+| `students`    | Student ID, Name, Department, Section     |
+| `rfid_tags`   | Which bracelet belongs to which student   |
+| `scan_events` | Every scan ever — date, time, who it was  |
+
+Why not just one big table? Because:
+- Alice's name is written **once** in `students`
+- Every scan just saves a number (her tag ID)
+- If her section changes, you fix **1 row**, not thousands
+
+This is called **normalization** — keeping data clean and efficient.
+
+---
+
+## ⚡ QUICKSTART — Do Exactly This
+
+### Step 1 — Make sure Python is installed
+
+Open a terminal (Command Prompt on Windows, Terminal on Mac/Linux).
+
+Type this and press Enter:
+```
 python --version
-
-# Install Flask (only needed for the web app)
-pip install flask
 ```
 
-### Step 1 — Create the Database
+You should see something like `Python 3.10.0`.
+If you see an error, download Python from https://python.org → Downloads.
 
-```bash
-python setup_database.py
+---
+
+### Step 2 — Download or copy this project folder
+
+Make sure all these files are in the **same folder** on your computer:
+- `START_HERE.py`
+- `setup_database.py`
+- `seed_data.py`
+- `scan_lookup.py`
+- `register_tag.py`
+- `app.py`
+- `requirements.txt`
+
+---
+
+### Step 3 — Open a terminal IN that folder
+
+**Windows:**
+1. Open File Explorer
+2. Go to the project folder
+3. Click the address bar at the top
+4. Type `cmd` and press Enter
+5. A black Command Prompt window opens **already inside your folder** ✔
+
+**Mac:**
+1. Open Finder
+2. Go to the project folder
+3. Right-click the folder → "New Terminal at Folder"
+
+**VS Code (any platform):**
+1. Open VS Code
+2. File → Open Folder → pick your project folder
+3. Terminal → New Terminal
+
+---
+
+### Step 4 — Run the system
+
+In the terminal, type exactly this and press Enter:
+
+```
+python START_HERE.py
 ```
 
-This creates `attendance.db` with three empty tables.
+**First time only** — you'll see this happen automatically:
+```
+  Flask not found. Installing it now (one-time setup)...
+  Flask installed!
 
-### Step 2 — Insert Sample Data
+  First-time setup — creating database and loading sample data...
 
-```bash
+  ✔ Table created: students
+  ✔ Table created: rfid_tags
+  ✔ Table created: scan_events
+
+  ✔ Added student: Alice Reyes (STU001)
+  ✔ Added student: Ben Santos (STU002)
+  ✔ Added student: Clara Mendoza (STU003)
+  ✔ Added student: David Cruz (STU004)
+  ✔ Added student: Eva Lim (STU005)
+
+  ✔ Database is ready!
+
+  Press Enter to continue to the main menu...
+```
+
+Press **Enter** and you'll see the main menu:
+
+```
+╔══════════════════════════════════════════════════════════════╗
+║        📡  RFID STUDENT ATTENDANCE SYSTEM  📡               ║
+╚══════════════════════════════════════════════════════════════╝
+
+  What would you like to do?
+
+    1  →  Scan bracelets (terminal mode)
+    2  →  Register a new bracelet to a student
+    3  →  View attendance log
+    4  →  Start the web app (browser interface)
+    5  →  List all students
+    0  →  Exit
+```
+
+---
+
+## Using the Menu
+
+### Option 1 — Scan Bracelets (Terminal)
+
+Choose this when you want to take attendance in the terminal window.
+
+1. Type `1` and press Enter
+2. The scanner starts:
+   ```
+   Scan bracelet ▶
+   ```
+3. Hold a bracelet near the reader — it types the UID automatically
+4. You'll see the student info instantly:
+   ```
+   ── 2026-03-18 09:00:00 ──────────────────
+   ✔  ATTENDANCE LOGGED
+      Student ID  :  STU001
+      Name        :  Alice Reyes
+      Department  :  Computer Science
+      Section     :  3A
+      Bracelet    :  B001
+   ```
+5. Type `exit` to go back to the menu
+
+> **No reader yet?** Just type one of these test codes and press Enter:
+> `A1B2C3D4` / `E5F6A7B8` / `C9D0E1F2` / `G3H4I5J6` / `K7L8M9N0`
+
+---
+
+### Option 2 — Register a New Bracelet
+
+Do this **once** for each new physical bracelet before using it for attendance.
+
+1. Type `2` and press Enter
+2. Follow the 4 steps on screen:
+
+   ```
+   STEP 1 of 4 — Enter the student ID
+   Student ID: STU006
+   ```
+   > Type the student's ID (must already exist in the database)
+
+   ```
+   ✔ Found student: Maria Santos
+     Department:    Computer Science
+     Section:       3A
+
+   STEP 3 of 4 — Scan the bracelet
+   Hold the bracelet near the USB reader.
+   UID (scanned by reader):
+   ```
+   > Hold the bracelet near the reader — it types the UID
+
+   ```
+   STEP 4 of 4 — Give the bracelet a label (optional)
+   Bracelet label: B006
+   ```
+   > Type a name for the bracelet, or just press Enter to skip
+
+   ```
+   ✔ Bracelet registered successfully!
+     Student   :  Maria Santos  (STU006)
+     UID       :  FF00AA11
+     Label     :  B006
+   ```
+
+---
+
+### Option 3 — View Attendance Log
+
+Shows a table of all recent scans:
+
+```
+  ALL RECORDED SCANS
+
+  #    Date & Time           ID       Name               Section  Bracelet
+  ────────────────────────────────────────────────────────────────────────
+  5    2026-03-18 09:01:00   STU001   Alice Reyes        3A       B001
+  4    2026-03-18 09:00:30   STU003   Clara Mendoza      3A       B003
+  3    2026-03-18 09:00:00   STU002   Ben Santos         3B       B002
+```
+
+Press Enter to go back to the menu.
+
+---
+
+### Option 4 — Web App (Browser Interface)
+
+This opens the website version — great for showing on a big screen during class.
+
+1. Type `4` and press Enter
+2. Press Enter again to start
+3. Wait for this message in the terminal:
+   ```
+   * Running on http://127.0.0.1:5000
+   ```
+4. Open **Chrome** or **Firefox**
+5. In the address bar (where you type web addresses), type:
+   ```
+   http://127.0.0.1:5000
+   ```
+   and press Enter
+6. The webpage loads with a scan box
+7. **Click the scan box once** (or it auto-focuses)
+8. Hold a bracelet near the reader — it types and submits automatically
+9. The page shows the student's info
+
+To stop the web app: go back to the terminal and press **Ctrl+C**
+
+---
+
+### Option 5 — List All Students
+
+Shows all students and which bracelet they have:
+
+```
+  ID       Name               Department                Sec   UID          Label
+  ────────────────────────────────────────────────────────────────────────────────
+  STU001   Alice Reyes        Computer Science          3A    A1B2C3D4     B001
+  STU002   Ben Santos         Information Technology    3B    E5F6A7B8     B002
+  STU003   Clara Mendoza      Computer Science          3A    C9D0E1F2     B003
+  STU004   David Cruz         Electronics               2C    G3H4I5J6     B004
+  STU005   Eva Lim            Information Technology    2A    K7L8M9N0     B005
+  STU006   Maria Santos       Computer Science          3A    (no bracelet)  —
+```
+
+---
+
+## Adding Real Students
+
+The sample data (STU001–STU005) is just for testing.
+To add your real students, open `seed_data.py` and edit the `students` list:
+
+```python
+students = [
+    ("STU001", "Alice Reyes",    "Computer Science",       "3A"),
+    # ↑         ↑                ↑                          ↑
+    # ID        Full Name        Department                 Section
+
+    ("STU006", "Maria Santos",   "Computer Science",       "3A"),   # ← add like this
+]
+```
+
+Then run:
+```
 python seed_data.py
 ```
 
-Inserts 5 students and 5 RFID tags so you can test immediately.
-
-### Step 3a — Terminal Scanner
-
-```bash
-python scan_lookup.py
-```
-
-- Type a UID (or scan a bracelet near the reader) and press Enter.
-- The script prints the student's info and logs the scan.
-- Test UIDs: `A1B2C3D4`, `E5F6A7B8`, `C9D0E1F2`, `G3H4I5J6`, `K7L8M9N0`
-- Type `exit` to quit.
-
-### Step 3b — Register a New Bracelet
-
-```bash
-python register_tag.py
-```
-
-1. Enter the student's ID (e.g. `STU001`).
-2. Scan the physical bracelet near the reader (it types the UID).
-3. Enter a label (e.g. `B006`) or press Enter to skip.
-4. The bracelet is now linked to the student.
-
-### Step 3c — Flask Web App
-
-```bash
-python app.py
-```
-
-1. Open your browser at **http://127.0.0.1:5000**
-2. Click the UID input field (it auto-focuses on load).
-3. Hold a bracelet near the reader — it types the UID and submits the form.
-4. The page shows student info and logs the scan.
-5. Press Ctrl+C in the terminal to stop the server.
+Or add them directly in the terminal using Option 2 after registering the bracelet.
 
 ---
 
-## Script Explanations
+## Troubleshooting
 
-### setup_database.py
-Uses Python's built-in `sqlite3` module to connect to (or create) `attendance.db`
-and runs `CREATE TABLE IF NOT EXISTS` statements. Safe to run multiple times — it
-won't overwrite existing data.
+### "python is not recognized" / "command not found"
+Python is not installed or not in your PATH.
+- Download from https://python.org/downloads
+- **Windows**: during install, check the box **"Add Python to PATH"**
+- Then close and reopen the terminal
 
-### seed_data.py
-Inserts sample rows using parameterized queries (`?` placeholders).
-`IntegrityError` is caught so duplicate inserts are skipped gracefully.
+### The RFID reader does nothing when I scan
+The reader needs to be focused — meaning the cursor must be inside the text box.
+- **Terminal mode**: the terminal window must be open and active (click on it)
+- **Web app**: click the scan box on the webpage once
+- Try a different USB port
+- On Windows: check Device Manager → the reader should appear as a keyboard (HID)
+- On Linux: try `lsusb` in the terminal to see if it's detected
 
-### scan_lookup.py
-Runs an infinite `while True` loop. Each iteration calls `input()` which blocks
-until the RFID reader types a UID and presses Enter. A SQL JOIN across `rfid_tags`
-and `students` retrieves the student. The scan is immediately committed to
-`scan_events`.
+### "Unknown tag" for a bracelet I just registered
+The UID might have extra spaces or be in a different case.
+- In the terminal scanner, type the UID manually first to confirm it works
+- Check `attendance.db` using DB Browser for SQLite (free tool) to see exactly what's stored
 
-### register_tag.py
-Guides the operator through linking a bracelet to a student in four steps.
-Duplicate detection uses `UNIQUE` constraints in the database — the script
-checks before inserting to give a friendly error message.
+### "no such table" error
+The database hasn't been created yet.
+Run: `python START_HERE.py` — it creates everything automatically on first launch.
 
-### app.py
-A Flask app with a single route (`/`) that handles both `GET` (show form) and
-`POST` (process UID). `render_template_string` is used so no external HTML files
-are needed. The JavaScript `window.onload` auto-focuses the input field so the
-RFID reader can type directly into it.
+### The web app won't open in the browser
+- Make sure you see `* Running on http://127.0.0.1:5000` in the terminal first
+- Type `http://127.0.0.1:5000` exactly (not google, not bing — type it yourself)
+- Try a different browser
 
----
+### "database is locked"
+Two scripts are trying to use the database at the same time.
+Close all terminals running Python scripts, then try again.
 
-## Debugging Tips
-
-### RFID Reader Not Typing
-
-| Symptom | Fix |
-|---------|-----|
-| Nothing appears when scanning | Make sure the input field or terminal is focused (click on it) |
-| Reader types strange characters | Check if the reader is set to the correct keyboard layout |
-| Reader shows as unknown device | Try a different USB port; check Device Manager (Windows) or `lsusb` (Linux) |
-| Extra characters at the end | Some readers append `\r\n` — `input()` handles this automatically |
-
-### Unknown Tags
-
-| Symptom | Fix |
-|---------|-----|
-| "Unknown tag" for a bracelet you registered | Check if `seed_data.py` was run; verify the UID matches exactly |
-| UID looks different each time | The reader may be sending inconsistent output — test with a fixed string first |
-| Can't find the UID in the database | Open `attendance.db` with DB Browser for SQLite and inspect `rfid_tags` |
-
-### Database Issues
-
-| Symptom | Fix |
-|---------|-----|
-| `no such table` error | Run `python setup_database.py` first |
-| `database is locked` | Another script is still connected — close it first |
-| Data not saving | Check that `connection.commit()` is called after every INSERT |
-| Want to reset everything | Delete `attendance.db` and run `setup_database.py` + `seed_data.py` again |
-
----
-
-## Useful Tools
-
-- **DB Browser for SQLite** — free GUI to view/edit your `.db` file visually.
-  Download at https://sqlitebrowser.org/
-- **Flask documentation** — https://flask.palletsprojects.com/
+### I want to start fresh / reset everything
+Delete the `attendance.db` file and run `python START_HERE.py` again.
 
 ---
 
 ## Quick Reference — Test UIDs
 
-| UID        | Student         | Section |
-|------------|-----------------|---------|
-| A1B2C3D4   | Alice Reyes     | 3A      |
-| E5F6A7B8   | Ben Santos      | 3B      |
-| C9D0E1F2   | Clara Mendoza   | 3A      |
-| G3H4I5J6   | David Cruz      | 2C      |
-| K7L8M9N0   | Eva Lim         | 2A      |
+No reader? Use these to test right now:
+
+| Type this UID | Gets you           |
+|---------------|--------------------|
+| `A1B2C3D4`    | Alice Reyes — 3A   |
+| `E5F6A7B8`    | Ben Santos — 3B    |
+| `C9D0E1F2`    | Clara Mendoza — 3A |
+| `G3H4I5J6`    | David Cruz — 2C    |
+| `K7L8M9N0`    | Eva Lim — 2A       |
+
+---
+
+## Free Tools to Install (Optional but Helpful)
+
+| Tool | What it does | Download |
+|------|-------------|---------|
+| **DB Browser for SQLite** | Opens `attendance.db` visually like Excel | https://sqlitebrowser.org |
+| **VS Code** | A friendly code editor | https://code.visualstudio.com |
+
+---
+
+*Built with Python 3, SQLite, and Flask. No internet connection required to run.*

@@ -1,102 +1,168 @@
 """
-app.py
-------
-PART 6 — WEB APPLICATION (FLASK)
+╔══════════════════════════════════════════════════════════════╗
+║  app.py  —  The Web App                                      ║
+║                                                              ║
+║  What this file does:                                        ║
+║    Runs a tiny WEBSITE on your own computer.                 ║
+║    You open it in Chrome/Firefox.                            ║
+║    The RFID reader types into the webpage's input box.       ║
+║    The page shows who scanned and logs the attendance.       ║
+║                                                              ║
+║  NOTE: START_HERE.py → Option 4 launches this for you.       ║
+║  Manual run:  python app.py                                  ║
+║  Then open:   http://127.0.0.1:5000                          ║
+╚══════════════════════════════════════════════════════════════╝
 
-A simple web interface for the RFID attendance system.
-- One input field on the page receives the UID typed by the RFID reader.
-- On form submit it looks up the student and logs the scan.
-- Shows student info or "Unknown tag".
-- Uses render_template_string (no separate HTML files needed).
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT IS FLASK?
+  Flask is a Python library that lets you build websites.
+  Normally making a website needs HTML + CSS + JavaScript +
+  a server + a lot of setup. Flask does all that server work
+  for you in a few lines of Python code.
 
-Requirements:
-    pip install flask
+  pip install flask   ←  installs it (START_HERE.py does this automatically)
 
-Usage:
-    python app.py
-Then open http://127.0.0.1:5000 in your browser.
+WHAT IS  http://127.0.0.1:5000 ?
+  127.0.0.1 = "this computer" (also called localhost)
+  5000      = the "door number" (port) Flask listens on
+  So this address means: "open the website running on MY computer, door 5000"
+  It only works on your machine — not the internet.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 
-from flask import Flask, request, render_template_string
-import sqlite3
-from datetime import datetime
+# ─────────────────────────────────────────────────────────────────────────────
+# IMPORTS
+# ─────────────────────────────────────────────────────────────────────────────
 
-# ── App setup ────────────────────────────────────────────────────────────────
+# Flask   = the web framework (library that makes websites easy)
+# request = lets us read what the user submitted in the form
+# render_template_string = turns a Python HTML string into a real webpage
+from flask import Flask, request, render_template_string
+
+import sqlite3                   # talks to our database
+from datetime import datetime    # gets the current date and time
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CREATE THE APP
+# Flask(__name__) creates our web application object.
+# __name__ tells Flask which file it's running from.
+# ─────────────────────────────────────────────────────────────────────────────
 app = Flask(__name__)
+
 DB_NAME = "attendance.db"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# HTML TEMPLATE
-# Written as a Python string — no separate .html file needed.
-# Jinja2 placeholders like {{ variable }} are filled in by Flask.
+# THE HTML PAGE
+#
+# This is the entire webpage written as a Python string.
+# {{ variable }} = Flask fills this in with a Python value
+# {% if ... %}   = Flask's version of  if  (runs inside HTML)
 # ─────────────────────────────────────────────────────────────────────────────
-HTML_TEMPLATE = """
+PAGE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RFID Attendance System</title>
+    <title>RFID Attendance</title>
     <style>
-        /* ── Basic, clean styling ── */
+        /* CSS = styling rules for how the page looks */
+
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
-            font-family: Arial, sans-serif;
-            background: #f0f4f8;
-            display: flex;
-            justify-content: center;
-            padding: 40px 16px;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
             min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
         }
 
-        .container {
+        .card {
             background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            border-radius: 16px;
             padding: 40px;
             width: 100%;
-            max-width: 520px;
-            height: fit-content;
+            max-width: 480px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
         }
 
-        h1 {
-            font-size: 1.6rem;
-            color: #1a202c;
-            margin-bottom: 6px;
-        }
-
-        .subtitle {
-            color: #718096;
-            font-size: 0.9rem;
+        .header {
+            text-align: center;
             margin-bottom: 32px;
         }
 
-        label {
+        .header .icon { font-size: 3rem; }
+
+        .header h1 {
+            font-size: 1.5rem;
+            color: #1a202c;
+            margin-top: 8px;
+        }
+
+        .header p {
+            color: #718096;
+            font-size: 0.9rem;
+            margin-top: 4px;
+        }
+
+        /* The scan input field */
+        .scan-box {
+            background: #f7fafc;
+            border: 3px dashed #4299e1;
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .scan-box label {
             display: block;
-            font-weight: bold;
-            color: #2d3748;
-            margin-bottom: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #4a5568;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
-        input[type="text"] {
+        .scan-box input {
             width: 100%;
-            padding: 14px 16px;
-            font-size: 1.1rem;
-            border: 2px solid #cbd5e0;
+            padding: 14px;
+            font-size: 1.2rem;
+            text-align: center;
+            border: 2px solid #e2e8f0;
             border-radius: 8px;
+            letter-spacing: 3px;
+            font-family: monospace;
             outline: none;
-            transition: border-color 0.2s;
-            letter-spacing: 2px;   /* Makes UIDs easier to read */
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
 
-        input[type="text"]:focus {
+        .scan-box input:focus {
             border-color: #4299e1;
+            box-shadow: 0 0 0 3px rgba(66,153,225,0.2);
+        }
+
+        .pulse {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background: #48bb78;
+            border-radius: 50%;
+            margin-right: 6px;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50%       { opacity: 0.4; transform: scale(0.8); }
         }
 
         button {
-            margin-top: 16px;
             width: 100%;
             padding: 14px;
             background: #4299e1;
@@ -104,138 +170,162 @@ HTML_TEMPLATE = """
             border: none;
             border-radius: 8px;
             font-size: 1rem;
+            font-weight: 600;
             cursor: pointer;
-            transition: background 0.2s;
+            transition: background 0.2s, transform 0.1s;
         }
 
-        button:hover { background: #3182ce; }
+        button:hover   { background: #3182ce; }
+        button:active  { transform: scale(0.98); }
 
-        /* ── Result boxes ── */
+        /* Result cards */
         .result {
-            margin-top: 28px;
-            padding: 20px;
-            border-radius: 8px;
+            margin-top: 24px;
+            border-radius: 12px;
+            overflow: hidden;
         }
 
-        .result.found {
-            background: #f0fff4;
-            border: 2px solid #68d391;
+        .result-header {
+            padding: 14px 20px;
+            font-weight: 700;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
-        .result.not-found {
-            background: #fff5f5;
-            border: 2px solid #fc8181;
-        }
+        .found   .result-header { background: #c6f6d5; color: #22543d; }
+        .unknown .result-header { background: #fed7d7; color: #742a2a; }
 
-        .result h2 {
-            margin-bottom: 12px;
-            font-size: 1.1rem;
-        }
+        .result-body { padding: 16px 20px; background: #f7fafc; }
 
-        .result.found h2 { color: #276749; }
-        .result.not-found h2 { color: #c53030; }
-
-        .info-row {
+        .row {
             display: flex;
             justify-content: space-between;
-            padding: 6px 0;
+            padding: 8px 0;
             border-bottom: 1px solid #e2e8f0;
             font-size: 0.95rem;
         }
 
-        .info-row:last-child { border-bottom: none; }
-        .info-label { color: #718096; }
-        .info-value { font-weight: bold; color: #2d3748; }
+        .row:last-child   { border-bottom: none; }
+        .row .key         { color: #718096; }
+        .row .val         { font-weight: 600; color: #2d3748; }
 
         .timestamp {
-            margin-top: 10px;
-            font-size: 0.8rem;
-            color: #a0aec0;
             text-align: right;
+            font-size: 0.78rem;
+            color: #a0aec0;
+            padding-top: 8px;
         }
 
-        .hint {
-            margin-top: 24px;
-            font-size: 0.82rem;
-            color: #a0aec0;
+        .footer {
             text-align: center;
+            margin-top: 24px;
+            font-size: 0.8rem;
+            color: #a0aec0;
         }
     </style>
 
     <script>
-        // Auto-focus the UID input when the page loads.
-        // This is important — the RFID reader types into whichever field is focused.
+        // JavaScript runs in the BROWSER (not Python).
+        // This small script auto-focuses the input field when the page loads.
+        // Without this, you'd have to click the box before scanning.
         window.onload = function() {
-            document.getElementById("uid_input").focus();
-        };
-
-        // After a successful scan, re-focus the input automatically
-        // so the next bracelet can be scanned immediately.
-        window.onload = function() {
-            var input = document.getElementById("uid_input");
-            input.focus();
-            input.select();  // Select all text so a new scan replaces the old UID.
+            var box = document.getElementById("uid_box");
+            box.focus();    // move cursor into the box
+            box.select();   // highlight any old text so new scan replaces it
         };
     </script>
 </head>
 <body>
-    <div class="container">
-        <h1>📡 RFID Attendance</h1>
-        <p class="subtitle">Scan a bracelet or type a UID below and press Enter.</p>
+    <div class="card">
 
-        <!-- ── Scan form ── -->
+        <!-- PAGE HEADER -->
+        <div class="header">
+            <div class="icon">📡</div>
+            <h1>RFID Attendance System</h1>
+            <p><span class="pulse"></span> Ready to scan</p>
+        </div>
+
+        <!-- SCAN FORM
+             method="POST" means: when submitted, send data to the server (Python).
+             action="/"    means: send it to the main page route.
+        -->
         <form method="POST" action="/">
-            <label for="uid_input">Tag UID</label>
-            <input
-                type="text"
-                id="uid_input"
-                name="uid"
-                placeholder="Waiting for scan..."
-                autocomplete="off"
-                value="{{ uid or '' }}"
-            >
-            <button type="submit">Look Up</button>
+            <div class="scan-box">
+                <label>Scan bracelet or type UID</label>
+                <input
+                    type="text"
+                    id="uid_box"
+                    name="uid"
+                    placeholder="Waiting for scan..."
+                    autocomplete="off"
+                    value="{{ uid or '' }}"
+                >
+            </div>
+            <button type="submit">Look Up Student ▶</button>
         </form>
 
-        <!-- ── Result area (shown only after a form submission) ── -->
+        <!-- RESULT SECTION
+             This section only appears if the form was submitted.
+             {% if result %} is Flask's if statement inside HTML.
+        -->
         {% if result %}
+
             {% if result.found %}
+                <!-- ── STUDENT FOUND ── -->
                 <div class="result found">
-                    <h2>✔ Student Found</h2>
-                    <div class="info-row">
-                        <span class="info-label">Student ID</span>
-                        <span class="info-value">{{ result.student_id }}</span>
+                    <div class="result-header">
+                        ✔ Student Found — Attendance Logged
                     </div>
-                    <div class="info-row">
-                        <span class="info-label">Full Name</span>
-                        <span class="info-value">{{ result.full_name }}</span>
+                    <div class="result-body">
+                        <div class="row">
+                            <span class="key">Student ID</span>
+                            <span class="val">{{ result.student_id }}</span>
+                        </div>
+                        <div class="row">
+                            <span class="key">Full Name</span>
+                            <span class="val">{{ result.full_name }}</span>
+                        </div>
+                        <div class="row">
+                            <span class="key">Department</span>
+                            <span class="val">{{ result.department }}</span>
+                        </div>
+                        <div class="row">
+                            <span class="key">Section</span>
+                            <span class="val">{{ result.section }}</span>
+                        </div>
+                        <div class="row">
+                            <span class="key">Bracelet</span>
+                            <span class="val">{{ result.label or '—' }}</span>
+                        </div>
+                        <p class="timestamp">Logged at {{ result.timestamp }}</p>
                     </div>
-                    <div class="info-row">
-                        <span class="info-label">Department</span>
-                        <span class="info-value">{{ result.department }}</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Section</span>
-                        <span class="info-value">{{ result.section }}</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Bracelet</span>
-                        <span class="info-value">{{ result.label or '—' }}</span>
-                    </div>
-                    <p class="timestamp">Logged at {{ result.timestamp }}</p>
                 </div>
+
             {% else %}
-                <div class="result not-found">
-                    <h2>✘ Unknown Tag</h2>
-                    <p>UID <strong>{{ uid }}</strong> is not registered.</p>
-                    <p style="margin-top:8px; font-size:0.9rem; color:#718096;">
-                        Run <code>python register_tag.py</code> to register this bracelet.
-                    </p>
+                <!-- ── UNKNOWN TAG ── -->
+                <div class="result unknown">
+                    <div class="result-header">
+                        ✘ Unknown Tag
+                    </div>
+                    <div class="result-body">
+                        <p style="color:#c53030;">
+                            UID <strong>{{ uid }}</strong> is not registered.
+                        </p>
+                        <p style="margin-top:8px; color:#718096; font-size:0.9rem;">
+                            Run the app → Option 2 to register this bracelet.
+                        </p>
+                    </div>
                 </div>
             {% endif %}
+
         {% endif %}
 
-        <p class="hint">The input field stays focused so the next scan is captured automatically.</p>
+        <p class="footer">
+            The input field auto-focuses so every scan is captured automatically.
+        </p>
+
     </div>
 </body>
 </html>
@@ -246,65 +336,62 @@ HTML_TEMPLATE = """
 # DATABASE HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_db_connection():
-    """Opens and returns a database connection."""
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row   # Lets us access columns by name (row["name"])
-    return conn
-
-
 def lookup_student(uid):
     """
-    Finds the student linked to this UID.
-    Returns a dict with student info, or None if not found.
+    Opens the database, finds the student for this UID, closes, returns result.
+    Returns a sqlite3.Row object (dict-like) or None.
     """
-    conn = get_db_connection()
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    # row_factory = sqlite3.Row lets us access columns by name:  row["full_name"]
+    # instead of by position:  row[1]
+
     row = conn.execute("""
         SELECT
-            s.student_id,
-            s.full_name,
-            s.department,
-            s.section,
-            t.tag_id,
-            t.label
+            s.student_id, s.full_name, s.department, s.section,
+            t.tag_id, t.label
         FROM rfid_tags AS t
-        JOIN students AS s ON t.student_id = s.student_id
+        JOIN students  AS s ON t.student_id = s.student_id
         WHERE t.uid = ?
     """, (uid,)).fetchone()
+
     conn.close()
     return row
 
 
 def log_scan(tag_id):
-    """Inserts a scan event row."""
-    conn = get_db_connection()
+    """Saves one scan event to the database."""
+    conn = sqlite3.connect(DB_NAME)
     conn.execute("INSERT INTO scan_events (tag_id) VALUES (?)", (tag_id,))
     conn.commit()
     conn.close()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ROUTES
+# THE ROUTE
+#
+# A "route" is a web address (URL) that Flask listens to.
+# @app.route("/") means: when someone visits  http://127.0.0.1:5000/
+# call the function below.
+#
+# methods=["GET", "POST"]
+#   GET  = when you first open the page (just show the form)
+#   POST = when you click the button / scanner submits (process the UID)
 # ─────────────────────────────────────────────────────────────────────────────
-
 @app.route("/", methods=["GET", "POST"])
 def index():
-    """
-    GET  → Show the empty scan page.
-    POST → Process the submitted UID, look up student, log scan.
-    """
     result = None
     uid = None
 
     if request.method == "POST":
-        # Get the UID that was typed/scanned into the form field.
+        # request.form is a dictionary of everything submitted in the form.
+        # We get the value from the field named "uid".
         uid = request.form.get("uid", "").strip()
 
         if uid:
             row = lookup_student(uid)
 
             if row:
-                # ── Known tag ──────────────────────────
                 log_scan(row["tag_id"])
                 result = {
                     "found":      True,
@@ -316,25 +403,21 @@ def index():
                     "timestamp":  datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 }
             else:
-                # ── Unknown tag ────────────────────────
                 result = {"found": False}
 
-    return render_template_string(HTML_TEMPLATE, result=result, uid=uid)
+    # render_template_string(PAGE, ...) takes the HTML string above,
+    # fills in all the {{ }} placeholders, and sends it to the browser.
+    return render_template_string(PAGE, result=result, uid=uid)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# START THE SERVER
+# START THE SERVER (runs only when called directly: python app.py)
 # ─────────────────────────────────────────────────────────────────────────────
-
 if __name__ == "__main__":
     print("=" * 50)
-    print("  RFID ATTENDANCE — FLASK WEB APP")
+    print("  RFID ATTENDANCE — WEB APP")
     print("=" * 50)
-    print("Open your browser and go to:")
-    print("  http://127.0.0.1:5000")
-    print("\nPress Ctrl+C to stop the server.")
-    print("=" * 50)
-
-    # debug=True reloads the server automatically when you edit this file.
-    # Set debug=False for production use.
+    print("\n  Open your browser and go to:")
+    print("  ▶  http://127.0.0.1:5000")
+    print("\n  Press Ctrl+C to stop.\n")
     app.run(debug=True)
