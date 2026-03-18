@@ -975,7 +975,7 @@
   <!-- ── 3D ROBOT OVERLAY ──────────────────────────────────────── -->
   <canvas id="robot-canvas"></canvas>
   <button id="robot-trigger" onclick="startRobotShow()">🤖 Watch the robot dance!</button>
-  <audio id="robot-audio" loop></audio>
+  <audio id="robot-audio"></audio>
 
   <footer>
     Designed & built by Alex Rivera with Claude Code · 2026
@@ -1135,7 +1135,8 @@
   let purpleSpot, tealSpot;
   const PHASES = { idle: 0, walkIn: 1, dance: 2, walkOut: 3 };
   let phase = PHASES.idle, phaseStart = 0;
-  const WALK_DUR = 2.2, DANCE_DUR = 30;
+  const WALK_DUR = 2.2;
+  let songEnded = false;
 
   window.startRobotShow = function () {
     if (phase !== PHASES.idle) return;
@@ -1165,11 +1166,13 @@
     phase = PHASES.walkIn;
     phaseStart = clock.getElapsedTime();
 
-    // Music
+    // Music — dance until the song ends
+    songEnded = false;
     const audio = document.getElementById('robot-audio');
     audio.src = MUSIC_FILE;
     audio.currentTime = 0;
     audio.volume = 0.75;
+    audio.onended = () => { songEnded = true; };
     audio.play().catch(err => console.warn('Audio blocked:', err));
 
     animate();
@@ -1316,8 +1319,8 @@
     const btn = document.getElementById('robot-trigger');
 
     // Phase transitions
-    if      (phase === PHASES.walkIn  && dt >= WALK_DUR)  { phase = PHASES.dance;   phaseStart = t; }
-    else if (phase === PHASES.dance   && dt >= DANCE_DUR) { phase = PHASES.walkOut; phaseStart = t; }
+    if      (phase === PHASES.walkIn  && dt >= WALK_DUR) { phase = PHASES.dance;   phaseStart = t; }
+    else if (phase === PHASES.dance   && songEnded)       { phase = PHASES.walkOut; phaseStart = t; }
     else if (phase === PHASES.walkOut && dt >= WALK_DUR)  {
       phase = PHASES.idle;
       robot.position.x = -14;
