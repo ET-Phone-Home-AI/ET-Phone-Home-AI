@@ -512,7 +512,7 @@
     #robot-canvas {
       position: fixed;
       bottom: 0; left: 0;
-      width: 100%; height: 320px;
+      width: 100%; height: 460px;
       pointer-events: none;
       z-index: 9999;
       display: none;
@@ -599,7 +599,7 @@
         I'm a <span id="typed"></span><span class="cursor"></span>
       </div>
       <p class="hero-desc">
-        CS sophomore at State University. I turn ideas into web apps —
+        Electrical Engineering sophomore at Virginia Commonwealth University. I turn ideas into web apps —
         from concept to deployed product. Passionate about clean code,
         good design, and AI-powered tools.
       </p>
@@ -621,7 +621,7 @@
         <div class="about-text reveal">
           <div class="section-label">About Me</div>
           <h2 class="section-title">Hey, I'm Alex 👋</h2>
-          <p>I'm a sophomore studying <span class="highlight">Computer Science</span> at State University with a focus on web development and machine learning. I started coding at 16 and never looked back.</p>
+          <p>I'm a sophomore studying <span class="highlight">Electrical Engineering</span> at Virginia Commonwealth University with a focus on embedded systems and software. I started coding at 16 and never looked back.</p>
           <p>I love building tools that <span class="highlight">solve real problems</span> — whether it's a study planner for my dorm floor or an AI chatbot for my club. I care deeply about both the code quality and the user experience.</p>
           <p>Outside of screens: hiking, film photography, and I'm rated 1800 in chess ♟️</p>
         </div>
@@ -808,22 +808,22 @@
         <div class="tl-item">
           <div class="tl-dot"></div>
           <div class="tl-date">2024 – Present</div>
-          <div class="tl-title">B.S. Computer Science</div>
-          <div class="tl-org">State University · GPA 3.7</div>
-          <div class="tl-desc">Relevant coursework: Data Structures, Algorithms, Web Dev, Databases, Machine Learning Fundamentals.</div>
+          <div class="tl-title">B.S. Electrical Engineering</div>
+          <div class="tl-org">Virginia Commonwealth University · GPA 3.7</div>
+          <div class="tl-desc">Relevant coursework: Circuit Analysis, Embedded Systems, Signals & Systems, Software Engineering, Machine Learning Fundamentals.</div>
         </div>
         <div class="tl-item">
           <div class="tl-dot"></div>
           <div class="tl-date">Spring 2025</div>
           <div class="tl-title">1st Place – HackState 2025</div>
-          <div class="tl-org">State University Hackathon</div>
+          <div class="tl-org">Virginia Commonwealth University Hackathon</div>
           <div class="tl-desc">Won best overall hack for building a real-time collaborative whiteboard with AI diagram generation in 24 hours.</div>
         </div>
         <div class="tl-item">
           <div class="tl-dot"></div>
           <div class="tl-date">Fall 2024</div>
           <div class="tl-title">CS Teaching Assistant</div>
-          <div class="tl-org">State University · Intro to Programming</div>
+          <div class="tl-org">Virginia Commonwealth University · Intro to Programming</div>
           <div class="tl-desc">Held weekly office hours for 60 students. Designed 3 lab assignments and graded weekly problem sets.</div>
         </div>
       </div>
@@ -1153,6 +1153,7 @@
   let songEnded = false;
   let starCtx = null;
   const starParticles = [];
+  let spinAngle = 0;
 
   window.startRobotShow = function () {
     if (phase !== PHASES.idle) return;
@@ -1168,6 +1169,7 @@
     starCanvas.style.display = 'block';
     starCtx = starCanvas.getContext('2d');
     starParticles.length = 0;
+    spinAngle = 0;
     document.getElementById('glow').classList.add('robot-mode');
 
     if (!robotReady) {
@@ -1207,13 +1209,13 @@
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    const W = window.innerWidth, H = 320;
+    const W = window.innerWidth, H = 460;
     renderer.setSize(W, H);
 
     scene  = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(42, W / H, 0.1, 200);
-    camera.position.set(0, 4.0, 15);
-    camera.lookAt(0, 2.8, 0);
+    camera = new THREE.PerspectiveCamera(48, W / H, 0.1, 200);
+    camera.position.set(0, 4.5, 9);
+    camera.lookAt(0, 3.8, 0);
     clock  = new THREE.Clock(false);
 
     window.addEventListener('resize', () => {
@@ -1263,7 +1265,7 @@
 
     // ── Robot ──────────────────────────────────────────────────
     robot = new THREE.Group();
-    robot.position.x = -28;
+    robot.position.set(-28, 3, 0);
     robot.scale.set(2, 2, 2);
     scene.add(robot);
 
@@ -1347,7 +1349,7 @@
     else if (phase === PHASES.dance   && songEnded)       { phase = PHASES.walkOut; phaseStart = t; }
     else if (phase === PHASES.walkOut && dt >= WALK_DUR)  {
       phase = PHASES.idle;
-      robot.position.x = -28;
+      robot.position.set(-28, 3, 0);
       document.getElementById('robot-canvas').style.display = 'none';
       document.getElementById('star-canvas').style.display = 'none';
       document.getElementById('robot-audio').pause();
@@ -1390,9 +1392,10 @@
       rp.y += 1.4; // aim at robot's chest
       rp.project(camera);
       const cw = window.innerWidth, ch = window.innerHeight;
-      const canvasTop = ch - 320;
+      const CANVAS_H = 460;
+      const canvasTop = ch - CANVAS_H;
       const sx = (rp.x  + 1) / 2 * cw;
-      const sy = canvasTop + ((-rp.y + 1) / 2 * 320);
+      const sy = canvasTop + ((-rp.y + 1) / 2 * CANVAS_H);
       const glowEl = document.getElementById('glow');
       glowEl.style.left = sx + 'px';
       glowEl.style.top  = sy + 'px';
@@ -1474,7 +1477,12 @@
   function doDance(t, dt) {
     // Moonwalk: glide across the stage left↔right
     robot.position.x = Math.sin(t * 0.35) * 5;
-    robot.rotation.y = Math.cos(t * 0.35) * 0.3; // lean into direction of travel
+
+    // Spin every ~8s (full 360 over ~1s window), plus lean into travel direction
+    const inSpin = (dt % 8) > 6.5 && (dt % 8) < 7.5;
+    if (inSpin) spinAngle += 0.22;
+    const lean = inSpin ? 0 : Math.cos(t * 0.35) * 0.3;
+    robot.rotation.y = spinAngle + lean;
 
     torsoGroup.position.y = Math.abs(Math.sin(t*4))*0.18;
     torsoGroup.rotation.z = Math.sin(t*2)*0.12;
@@ -1491,8 +1499,6 @@
     legR.rotation.x = Math.sin(t*4+Math.PI)*0.4;
     legL.rotation.z = Math.sin(t*2)*0.12;
     legR.rotation.z = Math.sin(t*2+Math.PI)*0.12;
-    // Spin every ~8s
-    if ((dt%8) > 6.5 && (dt%8) < 7.5) robot.rotation.y += 0.18;
     MAT.eye.emissiveIntensity = 1 + Math.sin(t*6)*0.5;
     purpleSpot.intensity = 2.5 + Math.sin(t*3)*1.5;
     tealSpot.intensity   = 2   + Math.sin(t*3+1);
