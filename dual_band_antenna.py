@@ -261,6 +261,31 @@ def _unpack_params(p):
     return slots, p[12], p[13], p[14], p[15]
 
 
+def _slot_bbox(i, P_s, W_s, L_s):
+    """
+    Return (x_lo, x_hi, y_lo, y_hi) bounding box of slot i in metres.
+    Odd slots (i=0,2) open from the bottom edge; even (i=1,3) from the top.
+    """
+    x_lo = P_s[i] - W_s[i] / 2
+    x_hi = P_s[i] + W_s[i] / 2
+    if i % 2 == 0:   # bottom-opening
+        y_lo = -L_p / 2
+        y_hi = -L_p / 2 + L_s[i]
+    else:             # top-opening
+        y_lo = L_p / 2 - L_s[i]
+        y_hi =  L_p / 2
+    return x_lo, x_hi, y_lo, y_hi
+
+
+def _point_in_slot(px, py, P_s, W_s, L_s):
+    """Return True if point (px, py) falls inside any slot's footprint."""
+    for i in range(4):
+        x_lo, x_hi, y_lo, y_hi = _slot_bbox(i, P_s, W_s, L_s)
+        if x_lo < px < x_hi and y_lo < py < y_hi:
+            return True
+    return False
+
+
 def check_constraints(p):
     """
     Return True if particle satisfies all geometric constraints.
@@ -271,11 +296,16 @@ def check_constraints(p):
       P_s4 + W_s4/2 <  7.0 mm
       P_si + W_si/2 < P_s(i+1) - W_s(i+1)/2   for i = 1,2,3
       L_c < L_s4
+      Feed point (0, F_y) must lie on copper — not inside any slot
+      Shorting pin (pin_x, pin_y) must lie on copper — not inside any slot
     """
     P_s = [p[0], p[3], p[6], p[9]]
     W_s = [p[1], p[4], p[7], p[10]]
     L_s = [p[2], p[5], p[8], p[11]]
     L_c = p[12]
+    F_y = p[13]
+    P_x = p[14]
+    P_y = p[15]
 
     if any(L_s[i] >= L_p for i in range(4)):
         return False
@@ -288,6 +318,17 @@ def check_constraints(p):
             return False
     if L_c >= L_s[3]:
         return False
+
+    # Feed (x=0, y=F_y) must be on copper patch and not in any slot
+    if _point_in_slot(0.0, F_y, P_s, W_s, L_s):
+        return False
+
+    # Shorting pin must not be inside any slot
+    pin_x = P_s[2] - W_s[2] / 2 - P_x
+    pin_y = L_p / 2 - P_y
+    if _point_in_slot(pin_x, pin_y, P_s, W_s, L_s):
+        return False
+
     return True
 
 
