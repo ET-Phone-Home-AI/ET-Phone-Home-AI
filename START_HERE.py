@@ -68,7 +68,7 @@ def setup_database():
         conn.execute("DROP TABLE students")
         conn.commit()
 
-    # ── Create the table (skipped if it already exists with correct layout)
+    # ── Create the students table (skipped if it already exists correctly) ──
     conn.execute("""
         CREATE TABLE IF NOT EXISTS students (
 
@@ -91,6 +91,24 @@ def setup_database():
 
             added_at    TEXT DEFAULT CURRENT_TIMESTAMP
             -- The date and time this entry was created. Fills in automatically.
+        )
+    """)
+
+    # ── Create the attendance_session table ──────────────────────────────────
+    # This is a SEPARATE table just for the current class session.
+    # It gets wiped clean every time a new attendance session starts (Option 4).
+    # Only the students who scanned today are stored here.
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS attendance_session (
+
+            entry_num   INTEGER PRIMARY KEY AUTOINCREMENT,
+            -- 1, 2, 3... the order students scanned in
+
+            student_name  TEXT NOT NULL,
+            -- copied from the students table at scan time
+
+            scanned_at    TEXT DEFAULT CURRENT_TIMESTAMP
+            -- exact time this student scanned in
         )
     """)
 
@@ -338,33 +356,39 @@ def show_database():
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# OPTION 4 — ATTENDANCE LIST
+# OPTION 4 — TAKE ATTENDANCE
 #
-# Starts a class attendance session.
-# Students scan their bracelets one by one as they enter.
-# Each scan adds them to a numbered list shown on screen.
-# Duplicate scans are ignored (same student scanning twice).
-# Type "done" when everyone has scanned to see the final list.
+# Clears any previous attendance session and starts a fresh one.
+# Students scan one by one — the program stays in scan mode the whole time.
+# Each scan is saved immediately to the attendance_session table.
+# Duplicate scans (same bracelet twice) are caught and ignored.
+# Type "done" to close the session and return to the menu.
 # ═════════════════════════════════════════════════════════════════════════════
 
-def attendance_list():
+def take_attendance():
     from datetime import datetime
 
+    conn = sqlite3.connect(DB_FILE)
+
+    # ── Wipe the previous session first ───────────────────────────────────
+    # DELETE FROM table removes every row but keeps the table itself.
+    # This means each new class session starts with a clean empty list.
+    conn.execute("DELETE FROM attendance_session")
+    # Also reset the auto-number counter so the next session starts at 1.
+    conn.execute("DELETE FROM sqlite_sequence WHERE name='attendance_session'")
+    conn.commit()
+
     print()
-    print("┌─────────────────────────────────────────────────┐")
-    print("│  ATTENDANCE SESSION                             │")
-    print("└─────────────────────────────────────────────────┘")
+    print("┌──────────────────────────────────────────────────┐")
+    print("│  NEW ATTENDANCE SESSION                          │")
+    print("│  Previous list has been cleared.                 │")
+    print("└──────────────────────────────────────────────────┘")
     print()
     print("  Ask each student to scan their bracelet.")
-    print('  Type  done  when finished.')
+    print('  Type  done  when all students have scanned.')
     print()
 
-    # present is a list that grows as students scan in.
-    # We also keep a set of seen UIDs to prevent duplicates.
-    present   = []    # stores names in order: ["Alice Reyes", "Ben Santos", ...]
-    seen_uids = set() # stores UIDs already scanned so no one is counted twice
-
-    conn = sqlite3.connect(DB_FILE)
+    seen_uids = set()   # remember which bracelets were already scanned
 
     while True:
         try:
@@ -372,59 +396,101 @@ def attendance_list():
         except (EOFError, KeyboardInterrupt):
             break
 
-        # ── End the session ────────────────────────────────────────────────
         if uid.lower() == "done":
             break
 
         if not uid:
-            continue   # ignore accidental Enter presses
+            continue
 
-        # ── Ignore if this bracelet was already scanned today ──────────────
+        # ── Duplicate check ────────────────────────────────────────────────
         if uid in seen_uids:
-            # Look up the name so the message is personal
             row = conn.execute(
                 "SELECT name FROM students WHERE uid = ?", (uid,)
             ).fetchone()
             already = row[0] if row else uid
-            print(f"  (already marked present: {already})")
+            print(f"  (already scanned: {already})")
             print()
             continue
 
         # ── Look up the student ────────────────────────────────────────────
         row = conn.execute(
-            "SELECT name, department FROM students WHERE uid = ?", (uid,)
+            "SELECT name FROM students WHERE uid = ?", (uid,)
         ).fetchone()
 
         if row:
-            # Add to the present list and remember this UID
-            present.append(row[0])
+            student_name = row[0]
+
+            # Save this scan to the attendance_session table
+            conn.execute(
+                "INSERT INTO attendance_session (student_name) VALUES (?)",
+                (student_name,)
+            )
+            conn.commit()
+
             seen_uids.add(uid)
 
-            number = len(present)   # their position in the list
-            print(f"  {number}. {row[0]}  ({row[1]})")
+            # Show current count so the professor sees live progress
+            count = conn.execute(
+                "SELECT COUNT(*) FROM attendance_session"
+            ).fetchone()[0]
+            print(f"  {count}-  {student_name}")
             print()
+
         else:
-            print(f"  ✘ Unknown tag — not in the database.")
+            print(f"  ✘ Unknown tag — bracelet not registered.")
             print()
 
     conn.close()
-
-    # ── Print the final attendance list ───────────────────────────────────
     print()
-    print("  ════════════════════════════════════════════════")
-    print(f"  ATTENDANCE  —  {datetime.now().strftime('%Y-%m-%d  %H:%M')}")
-    print("  ════════════════════════════════════════════════")
+    print("  Session saved. Choose Option 5 to view the attendance list.")
+    print()
 
-    if not present:
-        print("  No students were scanned.")
-    else:
-        for i, name in enumerate(present, start=1):
-            # enumerate gives us (1, name), (2, name), ...
-            print(f"  {i}.  {name}")
+
+# ═════════════════════════════════════════════════════════════════════════════
+# OPTION 5 — VIEW ATTENDANCE LIST
+#
+# Reads the attendance_session table and prints the saved list.
+# This is the list from the most recent Option 4 session.
+# ═════════════════════════════════════════════════════════════════════════════
+
+def view_attendance():
+    from datetime import datetime
+
+    conn = sqlite3.connect(DB_FILE)
+
+    rows = conn.execute("""
+        SELECT entry_num, student_name, scanned_at
+        FROM attendance_session
+        ORDER BY entry_num
+    """).fetchall()
+    # fetchall() returns every row as a list, in scan order.
+
+    conn.close()
+
+    print()
+    print("┌──────────────────────────────────────────────────┐")
+    print("│  ATTENDANCE LIST                                 │")
+    print("└──────────────────────────────────────────────────┘")
+    print()
+
+    if not rows:
+        print("  No attendance recorded yet.")
+        print("  Use Option 4 to start a session.")
         print()
-        print(f"  Total present: {len(present)} student(s)")
+        return
 
-    print("  ════════════════════════════════════════════════")
+    # Show the time of the first and last scan so the professor knows
+    # which class session this belongs to.
+    session_start = rows[0][2]
+    print(f"  Session date : {session_start}")
+    print()
+
+    for row in rows:
+        # row[0] = entry_num, row[1] = student_name
+        print(f"  {row[0]}-  {row[1]}")
+
+    print()
+    print(f"  Total present: {len(rows)} student(s)")
     print()
 
 
@@ -470,11 +536,12 @@ def main():
   │  1  →  Add New Entry to Database         │
   │  2  →  Scan a Tag                        │
   │  3  →  Show All Students                 │
-  │  4  →  Attendance List                   │
+  │  4  →  Take Attendance  (new session)    │
+  │  5  →  View Attendance List              │
   │  0  →  Exit                              │
   └──────────────────────────────────────────┘""")
 
-        choice = input("\n  Choose 1, 2, 3, 4, or 0: ").strip()
+        choice = input("\n  Choose 1, 2, 3, 4, 5, or 0: ").strip()
 
         if choice == "1":
             add_new_entry()
@@ -486,7 +553,10 @@ def main():
             show_database()
 
         elif choice == "4":
-            attendance_list()
+            take_attendance()
+
+        elif choice == "5":
+            view_attendance()
 
         elif choice == "0":
             print("\n  Goodbye! Your data is saved in attendance.db\n")
@@ -494,7 +564,7 @@ def main():
             # break = stop the while loop and end the program
 
         else:
-            print("\n  Please type 1, 2, 3, 4, or 0.\n")
+            print("\n  Please type 1, 2, 3, 4, 5, or 0.\n")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
