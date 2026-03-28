@@ -288,8 +288,58 @@ def scan_tag():
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+# OPTION 3 — SHOW ALL STUDENTS IN THE DATABASE
+#
+# Prints every student as a card so you can see all stored info at a glance.
+# ═════════════════════════════════════════════════════════════════════════════
+
+def show_database():
+    print()
+    print("┌─────────────────────────────────────────────────┐")
+    print("│  ALL STUDENTS IN DATABASE                       │")
+    print("└─────────────────────────────────────────────────┘")
+
+    conn = sqlite3.connect(DB_FILE)
+
+    # SELECT * means "give me every column".
+    # ORDER BY id means show them in the order they were added (oldest first).
+    rows = conn.execute("""
+        SELECT id, name, department, fun_fact, uid, added_at
+        FROM students
+        ORDER BY id
+    """).fetchall()
+    # fetchall() returns every matching row as a list.
+    # If the table is empty, it returns an empty list [].
+
+    conn.close()
+
+    if not rows:
+        print()
+        print("  No students yet. Use Option 1 to add the first one.")
+        print()
+        return
+
+    # Print one card per student
+    for row in rows:
+        # row[0]=id  row[1]=name  row[2]=department
+        # row[3]=fun_fact  row[4]=uid  row[5]=added_at
+        print()
+        print(f"  ┌─── Student #{row[0]} ───────────────────────────────┐")
+        print(f"  │  Name       :  {row[1]:<30} │")
+        print(f"  │  Department :  {row[2]:<30} │")
+        print(f"  │  Fun Fact   :  {row[3]:<30} │")
+        print(f"  │  Bracelet   :  {row[4]:<30} │")
+        print(f"  │  Added on   :  {row[5]:<30} │")
+        print(f"  └────────────────────────────────────────────────┘")
+
+    print()
+    print(f"  Total: {len(rows)} student(s) in the database.")
+    print()
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 # MAIN MENU
-# Shows 2 options in a loop. Keeps running until the user types 0 to exit.
+# Shows 3 options in a loop. Keeps running until the user types 0 to exit.
 # ═════════════════════════════════════════════════════════════════════════════
 
 def main():
@@ -328,10 +378,11 @@ def main():
   ┌──────────────────────────────────────────┐
   │  1  →  Add New Entry to Database         │
   │  2  →  Scan a Tag                        │
+  │  3  →  Show All Students                 │
   │  0  →  Exit                              │
   └──────────────────────────────────────────┘""")
 
-        choice = input("\n  Choose 1, 2, or 0: ").strip()
+        choice = input("\n  Choose 1, 2, 3, or 0: ").strip()
 
         if choice == "1":
             add_new_entry()
@@ -339,13 +390,16 @@ def main():
         elif choice == "2":
             scan_tag()
 
+        elif choice == "3":
+            show_database()
+
         elif choice == "0":
             print("\n  Goodbye! Your data is saved in attendance.db\n")
             break
             # break = stop the while loop and end the program
 
         else:
-            print("\n  Please type 1, 2, or 0.\n")
+            print("\n  Please type 1, 2, 3, or 0.\n")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
