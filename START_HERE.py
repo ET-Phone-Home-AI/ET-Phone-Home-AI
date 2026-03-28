@@ -499,7 +499,8 @@ def view_attendance():
 # OPTION 6 — CLEAR DATABASE
 #
 # Wipes ALL students and ALL attendance records permanently.
-# Asks you to confirm TWICE before doing anything — so no accidents.
+# Once cleared, all student entries and bracelet assignments are gone.
+# Asks "yes or no" before doing anything — anything other than "yes" cancels.
 # ═════════════════════════════════════════════════════════════════════════════
 
 def clear_database():
@@ -516,22 +517,17 @@ def clear_database():
     conn.close()
 
     print(f"  This will permanently delete:")
-    print(f"    • {student_count} student(s) from the main database")
-    print(f"    • {session_count} entry/entries from the attendance list")
+    print(f"    • {student_count} student(s) and all their bracelet assignments")
+    print(f"    • {session_count} record(s) from the attendance list")
     print()
-    print("  This CANNOT be undone.")
+    print("  ⚠  Once cleared this cannot be undone.")
     print()
 
-    # ── First confirmation ─────────────────────────────────────────────────
-    first = input("  Are you sure? Type  YES  to continue: ").strip()
-    if first != "YES":
-        print("\n  Cancelled — nothing was deleted.\n")
-        return
+    answer = input("  Are you sure?  Type  yes  or  no : ").strip().lower()
+    # .lower() means "yes", "YES", "Yes" all work the same way
 
-    # ── Second confirmation ────────────────────────────────────────────────
-    # Two confirmations for something this destructive.
-    second = input("  Type  YES  again to confirm: ").strip()
-    if second != "YES":
+    if answer != "yes":
+        # Anything that isn't exactly "yes" cancels safely
         print("\n  Cancelled — nothing was deleted.\n")
         return
 
