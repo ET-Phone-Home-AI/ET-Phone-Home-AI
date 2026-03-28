@@ -478,8 +478,14 @@ def plot_S11(freq_array, S11_initial, S11_optimized, save_path="S11_plot.png"):
 def plot_geometry(params, save_path="geometry_plot.png"):
     """
     Top-view patch geometry drawn to scale.
-    Substrate (grey), copper patch (gold), slots (white), feed (red dot),
-    shorting pin (black circle).
+
+    Coordinate convention (matches Karacolak 2008 fig.):
+      x-axis  → W_p direction (17.75 mm wide);  P_si are x-positions
+      y-axis  → L_p direction (22 mm tall);      L_si are slot heights
+
+    Slots are interdigitated: odd slots (S1, S3) open from the bottom edge
+    and even slots (S2, S4) open from the top edge, creating the serpentine
+    current path.
     """
     slots_wl, L_c, F_y, P_x, P_y = _unpack_params(params)
     P_s = [params[0], params[3], params[6], params[9]]
@@ -489,48 +495,57 @@ def plot_geometry(params, save_path="geometry_plot.png"):
     pin_y = L_p / 2 - P_y
     m = 1e3   # m → mm
 
-    fig, ax = plt.subplots(figsize=(8, 8))
+    fig, ax = plt.subplots(figsize=(7, 9))
 
-    # Substrate
-    ax.add_patch(Rectangle((-L_sub/2*m, -W_sub/2*m), L_sub*m, W_sub*m,
+    # Substrate (square — same in both axes)
+    ax.add_patch(Rectangle((-L_sub/2*m, -L_sub/2*m), L_sub*m, L_sub*m,
                             linewidth=1.5, edgecolor="black",
                             facecolor="lightgray", label="Substrate", zorder=1))
-    # Patch
-    ax.add_patch(Rectangle((-L_p/2*m, -W_p/2*m), L_p*m, W_p*m,
+
+    # Copper patch — W_p along x, L_p along y
+    ax.add_patch(Rectangle((-W_p/2*m, -L_p/2*m), W_p*m, L_p*m,
                             linewidth=1.2, edgecolor="goldenrod",
                             facecolor="#C8A000", label="Copper patch", zorder=2))
-    # Slots
+
+    # Slots — interdigitated: odd from bottom, even from top
     for i, (Ps, Ws, Ls) in enumerate(zip(P_s, W_s, L_s)):
-        ax.add_patch(Rectangle((Ps*m - Ws*m/2, -Ls*m/2), Ws*m, Ls*m,
+        if i % 2 == 0:   # S1, S3 — open from bottom edge
+            sy0 = -L_p / 2 * m
+        else:             # S2, S4 — open from top edge
+            sy0 = (L_p / 2 - Ls) * m
+        ax.add_patch(Rectangle((Ps*m - Ws*m/2, sy0), Ws*m, Ls*m,
                                 linewidth=0.8, edgecolor="dimgray",
                                 facecolor="white", zorder=3))
-        ax.text(Ps*m, 0, f"S{i+1}\nW={Ws*m:.1f}\nL={Ls*m:.1f}",
+        label_y = sy0 + Ls*m/2
+        ax.text(Ps*m, label_y, f"S{i+1}\nW={Ws*m:.1f}\nL={Ls*m:.1f}",
                 ha="center", va="center", fontsize=6, color="dimgray", zorder=4)
 
-    # Feed point
+    # Feed point (on the patch, x=0 along width centre, y=F_y along length)
     ax.plot(0, F_y*m, "ro", markersize=9, zorder=6,
             label=f"Feed (0, {F_y*m:.2f} mm)")
 
     # Shorting pin
-    ax.add_patch(Circle((pin_x*m, pin_y*m), radius=0.35,
+    ax.add_patch(Circle((pin_x*m, pin_y*m), radius=0.3,
                          color="black", zorder=6,
                          label=f"Pin ({pin_x*m:.2f}, {pin_y*m:.2f}) mm"))
 
-    # Dimension annotations (arrow-only, no conflicting kwargs)
-    ax.annotate("", xy=(L_p/2*m, -W_p/2*m - 1.8),
-                xytext=(-L_p/2*m, -W_p/2*m - 1.8),
+    # Dimension annotations
+    # Width arrow along x at bottom of patch
+    ax.annotate("", xy=(W_p/2*m, -L_p/2*m - 1.8),
+                xytext=(-W_p/2*m, -L_p/2*m - 1.8),
                 arrowprops=dict(arrowstyle="<->", color="black", lw=1.0))
-    ax.text(0, -W_p/2*m - 2.6, f"L_p = {L_p*m:.1f} mm",
+    ax.text(0, -L_p/2*m - 2.8, f"W_p = {W_p*m:.2f} mm",
             ha="center", va="top", fontsize=8)
 
-    ax.annotate("", xy=(L_p/2*m + 1.8, W_p/2*m),
-                xytext=(L_p/2*m + 1.8, -W_p/2*m),
+    # Length arrow along y at right of patch
+    ax.annotate("", xy=(W_p/2*m + 1.8, L_p/2*m),
+                xytext=(W_p/2*m + 1.8, -L_p/2*m),
                 arrowprops=dict(arrowstyle="<->", color="black", lw=1.0))
-    ax.text(L_p/2*m + 2.5, 0, f"W_p = {W_p*m:.2f} mm",
+    ax.text(W_p/2*m + 2.5, 0, f"L_p = {L_p*m:.1f} mm",
             ha="left", va="center", fontsize=8, rotation=90)
 
-    ax.set_xlim(-14, 16)
-    ax.set_ylim(-16, 14)
+    ax.set_xlim(-14, 14)
+    ax.set_ylim(-16, 15)
     ax.set_aspect("equal")
     ax.set_xlabel("x (mm)", fontsize=11)
     ax.set_ylabel("y (mm)", fontsize=11)
