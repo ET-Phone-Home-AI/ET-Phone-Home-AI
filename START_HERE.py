@@ -494,9 +494,65 @@ def view_attendance():
     print()
 
 
+
+# ═════════════════════════════════════════════════════════════════════════════
+# OPTION 6 — CLEAR DATABASE
+#
+# Wipes ALL students and ALL attendance records permanently.
+# Asks you to confirm TWICE before doing anything — so no accidents.
+# ═════════════════════════════════════════════════════════════════════════════
+
+def clear_database():
+    print()
+    print("┌──────────────────────────────────────────────────┐")
+    print("│  CLEAR DATABASE                                  │")
+    print("└──────────────────────────────────────────────────┘")
+    print()
+
+    # Show exactly what will be deleted so the user knows what they're doing
+    conn = sqlite3.connect(DB_FILE)
+    student_count = conn.execute("SELECT COUNT(*) FROM students").fetchone()[0]
+    session_count = conn.execute("SELECT COUNT(*) FROM attendance_session").fetchone()[0]
+    conn.close()
+
+    print(f"  This will permanently delete:")
+    print(f"    • {student_count} student(s) from the main database")
+    print(f"    • {session_count} entry/entries from the attendance list")
+    print()
+    print("  This CANNOT be undone.")
+    print()
+
+    # ── First confirmation ─────────────────────────────────────────────────
+    first = input("  Are you sure? Type  YES  to continue: ").strip()
+    if first != "YES":
+        print("\n  Cancelled — nothing was deleted.\n")
+        return
+
+    # ── Second confirmation ────────────────────────────────────────────────
+    # Two confirmations for something this destructive.
+    second = input("  Type  YES  again to confirm: ").strip()
+    if second != "YES":
+        print("\n  Cancelled — nothing was deleted.\n")
+        return
+
+    # ── Delete everything and reset counters ───────────────────────────────
+    conn = sqlite3.connect(DB_FILE)
+    conn.execute("DELETE FROM attendance_session")
+    conn.execute("DELETE FROM students")
+    # Reset the auto-number counters so the next entries start from 1 again
+    conn.execute("DELETE FROM sqlite_sequence WHERE name='students'")
+    conn.execute("DELETE FROM sqlite_sequence WHERE name='attendance_session'")
+    conn.commit()
+    conn.close()
+
+    print()
+    print("  ✔ Database cleared. All students and attendance records deleted.")
+    print("  Use Option 1 to start adding students again.")
+    print()
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # MAIN MENU
-# Shows 4 options in a loop. Keeps running until the user types 0 to exit.
 # ═════════════════════════════════════════════════════════════════════════════
 
 def main():
@@ -538,10 +594,11 @@ def main():
   │  3  →  Show All Students                 │
   │  4  →  Take Attendance  (new session)    │
   │  5  →  View Attendance List              │
+  │  6  →  Clear Database                    │
   │  0  →  Exit                              │
   └──────────────────────────────────────────┘""")
 
-        choice = input("\n  Choose 1, 2, 3, 4, 5, or 0: ").strip()
+        choice = input("\n  Choose 1-6 or 0: ").strip()
 
         if choice == "1":
             add_new_entry()
@@ -558,13 +615,16 @@ def main():
         elif choice == "5":
             view_attendance()
 
+        elif choice == "6":
+            clear_database()
+
         elif choice == "0":
             print("\n  Goodbye! Your data is saved in attendance.db\n")
             break
             # break = stop the while loop and end the program
 
         else:
-            print("\n  Please type 1, 2, 3, 4, 5, or 0.\n")
+            print("\n  Please type a number from 0 to 6.\n")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
