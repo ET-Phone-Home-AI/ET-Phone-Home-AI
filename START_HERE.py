@@ -182,6 +182,45 @@ def add_new_entry():
         print("     Try scanning a different bracelet.")
         print()
 
+    except sqlite3.OperationalError:
+        # This error means the database has an old layout from a previous
+        # version of this program (different column names).
+        # Fix: drop the old table, create the correct one, retry the insert.
+        print()
+        print("  Detected old database layout — rebuilding table...")
+        conn.execute("DROP TABLE IF EXISTS students")
+        conn.execute("""
+            CREATE TABLE students (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                name       TEXT NOT NULL,
+                department TEXT NOT NULL,
+                fun_fact   TEXT,
+                uid        TEXT UNIQUE NOT NULL,
+                added_at   TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+
+        # Retry the insert now that the table is correct
+        try:
+            conn.execute("""
+                INSERT INTO students (name, department, fun_fact, uid)
+                VALUES (?, ?, ?, ?)
+            """, (name, department, fun_fact, uid))
+            conn.commit()
+            print()
+            print("  ✔ ─────────────────────────────────────────────")
+            print(f"  ✔  Database fixed and entry saved!")
+            print(f"  ✔  Name       : {name}")
+            print(f"  ✔  Department : {department}")
+            print(f"  ✔  Fun Fact   : {fun_fact}")
+            print(f"  ✔  Bracelet   : {uid}")
+            print("  ✔ ─────────────────────────────────────────────")
+            print()
+        except Exception as retry_err:
+            print(f"  ✘ Could not save: {retry_err}")
+            print()
+
     conn.close()
 
 
