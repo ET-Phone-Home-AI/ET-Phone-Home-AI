@@ -338,8 +338,99 @@ def show_database():
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+# OPTION 4 — ATTENDANCE LIST
+#
+# Starts a class attendance session.
+# Students scan their bracelets one by one as they enter.
+# Each scan adds them to a numbered list shown on screen.
+# Duplicate scans are ignored (same student scanning twice).
+# Type "done" when everyone has scanned to see the final list.
+# ═════════════════════════════════════════════════════════════════════════════
+
+def attendance_list():
+    from datetime import datetime
+
+    print()
+    print("┌─────────────────────────────────────────────────┐")
+    print("│  ATTENDANCE SESSION                             │")
+    print("└─────────────────────────────────────────────────┘")
+    print()
+    print("  Ask each student to scan their bracelet.")
+    print('  Type  done  when finished.')
+    print()
+
+    # present is a list that grows as students scan in.
+    # We also keep a set of seen UIDs to prevent duplicates.
+    present   = []    # stores names in order: ["Alice Reyes", "Ben Santos", ...]
+    seen_uids = set() # stores UIDs already scanned so no one is counted twice
+
+    conn = sqlite3.connect(DB_FILE)
+
+    while True:
+        try:
+            uid = input("  Scan bracelet ▶ ").strip()
+        except (EOFError, KeyboardInterrupt):
+            break
+
+        # ── End the session ────────────────────────────────────────────────
+        if uid.lower() == "done":
+            break
+
+        if not uid:
+            continue   # ignore accidental Enter presses
+
+        # ── Ignore if this bracelet was already scanned today ──────────────
+        if uid in seen_uids:
+            # Look up the name so the message is personal
+            row = conn.execute(
+                "SELECT name FROM students WHERE uid = ?", (uid,)
+            ).fetchone()
+            already = row[0] if row else uid
+            print(f"  (already marked present: {already})")
+            print()
+            continue
+
+        # ── Look up the student ────────────────────────────────────────────
+        row = conn.execute(
+            "SELECT name, department FROM students WHERE uid = ?", (uid,)
+        ).fetchone()
+
+        if row:
+            # Add to the present list and remember this UID
+            present.append(row[0])
+            seen_uids.add(uid)
+
+            number = len(present)   # their position in the list
+            print(f"  {number}. {row[0]}  ({row[1]})")
+            print()
+        else:
+            print(f"  ✘ Unknown tag — not in the database.")
+            print()
+
+    conn.close()
+
+    # ── Print the final attendance list ───────────────────────────────────
+    print()
+    print("  ════════════════════════════════════════════════")
+    print(f"  ATTENDANCE  —  {datetime.now().strftime('%Y-%m-%d  %H:%M')}")
+    print("  ════════════════════════════════════════════════")
+
+    if not present:
+        print("  No students were scanned.")
+    else:
+        for i, name in enumerate(present, start=1):
+            # enumerate gives us (1, name), (2, name), ...
+            print(f"  {i}.  {name}")
+        print()
+        print(f"  Total present: {len(present)} student(s)")
+
+    print("  ════════════════════════════════════════════════")
+    print()
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 # MAIN MENU
-# Shows 3 options in a loop. Keeps running until the user types 0 to exit.
+# Shows 4 options in a loop. Keeps running until the user types 0 to exit.
 # ═════════════════════════════════════════════════════════════════════════════
 
 def main():
@@ -379,10 +470,11 @@ def main():
   │  1  →  Add New Entry to Database         │
   │  2  →  Scan a Tag                        │
   │  3  →  Show All Students                 │
+  │  4  →  Attendance List                   │
   │  0  →  Exit                              │
   └──────────────────────────────────────────┘""")
 
-        choice = input("\n  Choose 1, 2, 3, or 0: ").strip()
+        choice = input("\n  Choose 1, 2, 3, 4, or 0: ").strip()
 
         if choice == "1":
             add_new_entry()
@@ -393,13 +485,16 @@ def main():
         elif choice == "3":
             show_database()
 
+        elif choice == "4":
+            attendance_list()
+
         elif choice == "0":
             print("\n  Goodbye! Your data is saved in attendance.db\n")
             break
             # break = stop the while loop and end the program
 
         else:
-            print("\n  Please type 1, 2, 3, or 0.\n")
+            print("\n  Please type 1, 2, 3, 4, or 0.\n")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
