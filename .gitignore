@@ -1,0 +1,17 @@
+# SQLite database files
+# attendance.db is created locally when the program runs.
+# It contains real student data and should never be committed to git.
+*.db
+
+# Python cache files (created automatically, not needed in the repo)
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment folders
+venv/
+.venv/
+
+# OS-generated files
+.DS_Store
+Thumbs.db

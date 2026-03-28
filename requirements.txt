@@ -1,0 +1,12 @@
+# requirements.txt
+# ─────────────────────────────────────────────────────────────
+# This file lists every extra library this project needs.
+# To install everything at once, run:
+#
+#     pip install -r requirements.txt
+#
+# NOTE: START_HERE.py does this automatically.
+#       You only need this file if you want to install manually.
+# ─────────────────────────────────────────────────────────────
+
+flask     # the library that runs our mini website
