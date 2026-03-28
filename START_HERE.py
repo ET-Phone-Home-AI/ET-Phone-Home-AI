@@ -39,12 +39,36 @@ DB_FILE = "attendance.db"
 def setup_database():
     """
     Creates attendance.db and the students table on first run only.
-    On every run after that, this function does nothing (IF NOT EXISTS).
+    Also detects and upgrades old database layouts from previous versions.
     """
     conn = sqlite3.connect(DB_FILE)
-    # sqlite3.connect() opens the file. If the file doesn't exist yet,
-    # SQLite creates an empty one automatically.
 
+    # ── Check if the table already exists and what columns it has ─────────
+    # PRAGMA table_info() is a SQLite command that lists all columns
+    # in a table. We use it to detect old incompatible database layouts.
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(students)")
+    existing_columns = [row[1] for row in cursor.fetchall()]
+    # existing_columns will be something like ['student_id', 'full_name', ...]
+    # or [] if the table doesn't exist yet.
+
+    # ── If the table exists but uses the OLD column layout, drop it ───────
+    # The old layout used 'full_name' and 'student_id'.
+    # The new layout uses 'name', 'fun_fact', 'uid'.
+    # If we find old columns, we delete the old table so the new one can
+    # be created cleanly below.
+    if existing_columns and "name" not in existing_columns:
+        print()
+        print("  ┌─────────────────────────────────────────────────────┐")
+        print("  │  NOTE: Old database format detected.                │")
+        print("  │  The table layout changed in this version.          │")
+        print("  │  The old table has been replaced automatically.     │")
+        print("  │  Please re-add your students using Option 1.        │")
+        print("  └─────────────────────────────────────────────────────┘")
+        conn.execute("DROP TABLE students")
+        conn.commit()
+
+    # ── Create the table (skipped if it already exists with correct layout)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS students (
 
