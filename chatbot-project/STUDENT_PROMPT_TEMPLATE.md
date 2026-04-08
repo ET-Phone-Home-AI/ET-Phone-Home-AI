@@ -1,94 +1,134 @@
 # Student Prompt — AI Business Chatbot
-## Use this with Claude.ai to generate your Python chatbot code
+## Use this with Claude.ai to build your own smart chatbot in PyCharm
 
 ---
 
-### YOUR STEPS:
+## BEFORE YOU START — Get Your Free API Key (5 minutes)
 
-1. Read the prompt below
-2. Fill in YOUR business description where it says [WRITE YOUR BUSINESS HERE]
-3. Copy the entire prompt and paste it into **claude.ai**
-4. Copy the Python code Claude gives you
-5. Open PyCharm → New File → save as `my_chatbot.py`
-6. Paste the code in
-7. Find the line that says `GROQ_API_KEY = "YOUR_KEY_HERE"` and replace with your key
-8. Run it — a browser tab opens with your chatbot
+1. Open a new browser tab → go to **console.groq.com**
+2. Click **"Sign in with Google"** → select your **@vcu.edu** email
+3. Click **"API Keys"** in the top navigation bar
+4. Click **"Create API Key"** → name it anything (e.g. `VCU-Chatbot`)
+5. Click **Submit**
+6. **COPY THE KEY IMMEDIATELY** — it starts with `gsk_` and is shown only once
+7. Paste it somewhere safe (Notes app, email to yourself) — you'll need it in a moment
 
----
-
-## THE PROMPT — Copy everything below this line and paste into claude.ai
+> ⚠️ **Do NOT add a credit card. You don't need one. It's completely free.**
 
 ---
 
-I need you to write a Python script for a smart AI business chatbot that I will run in PyCharm. Here is my business:
+## YOUR STEPS
 
-[WRITE YOUR BUSINESS HERE — describe it in 4 to 6 sentences. Include what you sell, your hours, location, prices, any special options like delivery or dietary choices, and how customers can reach you. Make it up and be creative. Examples: a sneaker store, a campus gym, a food truck, a nail salon, a tutoring service, a travel agency.]
+1. Fill in YOUR business description in the prompt below
+2. Copy the entire prompt and paste it into **claude.ai**
+3. Copy ALL the Python code Claude gives you
+4. Open **PyCharm** → File → New → Python File → name it `my_chatbot.py`
+5. Paste the code in
+6. Open the **PyCharm Terminal** (bottom of screen) and run:
+   ```
+   pip install groq gradio httpx
+   ```
+7. Find the line `GROQ_API_KEY = "YOUR_KEY_HERE"` → replace with your `gsk_...` key
+8. Hit the green **Run** button → a browser tab opens with your chatbot!
 
-Please generate one complete Python file using these exact requirements:
+---
 
-1. At the very top, add a comment block listing the three install commands the student needs to run first:
-   pip install groq
-   pip install gradio
-   pip install httpx
+## THE PROMPT — Copy everything in the box below and paste into claude.ai
 
-2. Import AsyncGroq from groq, import gradio, and import httpx
+---
 
-3. Add this exact line so the student can paste their API key:
-   GROQ_API_KEY = "YOUR_KEY_HERE"
+I need you to write a complete Python script for a smart AI business chatbot that I will run in PyCharm on a Windows computer connected to a university network.
 
-4. Create a variable called BUSINESS_CONTEXT. This is a detailed description of the business above written as instructions for an AI assistant. The AI should:
-   - Be helpful, friendly, and stay on topic for this business
-   - Give real, specific answers — never just say "call us" or "visit our website" as the only response
-   - If it does not know something very specific like today's special or current inventory, suggest a helpful alternative like checking social media or coming in person
-   - Keep responses concise since customers may be on their phones
+MY BUSINESS:
+[REPLACE THIS with 4 to 6 sentences describing your business. Include: what you sell, hours, location, prices, any special features like delivery or dietary options, and how customers contact you. Make it up and be creative! Examples: sneaker store, campus gym, food truck, nail salon, tutoring service, travel agency, gaming lounge.]
 
-5. Create a function called smart_chatbot that takes message and history as parameters and does the following:
-   - Builds a messages list that starts with the BUSINESS_CONTEXT as the system role
-   - Loops through the history and adds each past message pair to the list so the AI remembers the full conversation
-   - Appends the current user message
-   - Creates the Groq client using this exact line (do not change it):
-     client = AsyncGroq(api_key=GROQ_API_KEY, http_client=httpx.AsyncClient(verify=False))
-   - The function must be defined as async: async def smart_chatbot(message, history)
-   - Calls the Groq API using: await client.chat.completions.create(...)
-   - Uses the model named llama-3.3-70b-versatile with max_tokens set to 300
-   - Returns the AI response text
-   - Has a try except block that catches errors and returns this message if rate_limit appears in the error: "Too many messages at once! Wait a moment and try again." and returns this for any other error: "Something went wrong. Make sure your API key is correct in the code."
+Please generate one complete Python file using these EXACT requirements. Do not change any of the technical lines — they are required to make the code work on a university network.
 
-6. At the bottom, launch a Gradio ChatInterface with:
-   - The function smart_chatbot
-   - A title that uses my business name
-   - A short description line
-   - .launch() to start it
+IMPORTS — use exactly these:
+```
+from groq import AsyncGroq
+import gradio as gr
+import httpx
+```
 
-7. After the launch line, add a commented section with 6 suggested test questions specific to my business that a real customer might ask — including at least one tricky follow-up question that tests whether the chatbot remembers context.
+API KEY LINE — use exactly this:
+```
+GROQ_API_KEY = "YOUR_KEY_HERE"
+```
 
-Rules for the code you generate:
+CLIENT LINE — use exactly this (the verify=False is required for university WiFi):
+```
+client = AsyncGroq(api_key=GROQ_API_KEY, http_client=httpx.AsyncClient(verify=False))
+```
+
+BUSINESS CONTEXT — create a variable called BUSINESS_CONTEXT with a detailed system prompt based on my business above. The AI assistant should:
+- Be helpful, friendly, and stay on topic
+- Give real, specific answers — NEVER just say "call us" or "visit our website" as the only answer
+- If it doesn't know something specific (like today's special), suggest a helpful alternative like checking Instagram
+- Keep responses short since customers may be on their phones
+
+CHATBOT FUNCTION — use exactly this structure:
+```
+async def smart_chatbot(message, history):
+    messages = [{"role": "system", "content": BUSINESS_CONTEXT}]
+    for msg in history:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+    messages.append({"role": "user", "content": message})
+    try:
+        response = await client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=messages,
+            max_tokens=300
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        if "rate_limit" in str(e).lower():
+            return "Too many messages at once! Wait a moment and try again."
+        return "Something went wrong. Double-check that your API key is correct."
+```
+
+LAUNCH — use exactly this at the bottom (do not add type="messages"):
+```
+gr.ChatInterface(
+    smart_chatbot,
+    title="[Business Name] AI Assistant",
+    description="Powered by Llama 3.3 via Groq — Ask me anything!"
+).launch()
+```
+
+After the launch line, add a commented block with 6 test questions specific to my business — including at least one follow-up question that tests if the chatbot remembers the conversation.
+
+Rules:
 - Output only the Python code — no explanation text outside the code
-- Use comments inside the code to label each section clearly
-- The BUSINESS_CONTEXT section must be clearly marked so I can edit it later
-- The code must run in PyCharm with no changes other than replacing YOUR_KEY_HERE with a real API key
+- Add a comment at the very top: # pip install groq gradio httpx
+- Clearly label the BUSINESS_CONTEXT section so I can edit it
+- Do not change any of the exact lines specified above
 
 ---
 
-### AFTER YOU GET THE CODE:
+## AFTER YOU GET THE CODE
 
-- Paste it into PyCharm
-- Open the PyCharm Terminal at the bottom and run:
-  ```
-  pip install groq gradio httpx
-  ```
-- Replace `YOUR_KEY_HERE` with your Groq API key
+- Paste into PyCharm
+- Run in terminal: `pip install groq gradio httpx`
+- Replace `YOUR_KEY_HERE` with your real `gsk_...` key
 - Hit the green Run button
-- Your chatbot opens in the browser automatically
+- Browser opens automatically with your chatbot
 
-### IF YOU GET AN ERROR:
+## KNOWN BEHAVIOR — READ THIS
 
-Copy the full error from PyCharm, go back to claude.ai, and say:
+> After you type a message and press Enter, **wait 3-5 seconds**.
+> The AI is thinking — you will see a loading indicator.
+> Do not type again until the response appears.
+> If nothing happens after 10 seconds, press Enter once with an empty box.
 
-> My Python code gave me this error. Please fix it and give me the corrected full script:
+## IF YOU GET AN ERROR
+
+Copy the full error from PyCharm, go back to claude.ai and say:
+
+> My Python code gave me this error in PyCharm on a university network. Please fix it and give me the corrected full script:
 > [paste error here]
 
-### AFTER CLASS — DELETE YOUR API KEY:
+## AFTER CLASS — DELETE YOUR API KEY
 
-Go to console.groq.com → API Keys → click Delete next to your key.
-This is what developers do with keys they no longer need. Takes 10 seconds.
+Go to `console.groq.com` → API Keys → click **Delete** next to your key.
+This is what real developers do with keys they no longer need. Takes 10 seconds.
