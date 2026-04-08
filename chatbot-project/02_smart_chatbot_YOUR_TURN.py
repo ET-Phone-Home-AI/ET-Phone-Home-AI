@@ -1,9 +1,9 @@
 # =============================================================
 # THE SMART CHATBOT — Your Turn
 # =============================================================
-# BEFORE RUNNING: Install two packages in PyCharm
+# BEFORE RUNNING: Install three packages in PyCharm
 #   Go to: Settings > Python Interpreter > + > search each one > Install
-#   OR open PyCharm terminal and type: pip install groq gradio
+#   OR open PyCharm terminal and type: pip install groq gradio httpx
 #
 # HOW TO GET YOUR FREE API KEY:
 #   1. Go to console.groq.com
@@ -17,6 +17,7 @@
 
 import groq
 import gradio as gr
+import httpx
 
 # --------------------------------------------------------------
 # PASTE YOUR GROQ API KEY HERE
@@ -54,7 +55,8 @@ Your personality:
 # The code below powers the AI — no need to change anything here
 # ==============================================================
 
-client = groq.Groq(api_key=GROQ_API_KEY)
+# verify=False fixes SSL certificate issues on university networks (e.g. VCU)
+client = groq.Groq(api_key=GROQ_API_KEY, http_client=httpx.Client(verify=False))
 
 def smart_chatbot(message, history):
     messages = [{"role": "system", "content": BUSINESS_CONTEXT}]

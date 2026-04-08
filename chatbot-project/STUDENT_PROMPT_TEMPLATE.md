@@ -26,11 +26,12 @@ I need you to write a Python script for a smart AI business chatbot that I will 
 
 Please generate one complete Python file using these exact requirements:
 
-1. At the very top, add a comment block listing the two install commands the student needs to run first:
+1. At the very top, add a comment block listing the three install commands the student needs to run first:
    pip install groq
    pip install gradio
+   pip install httpx
 
-2. Import groq and gradio
+2. Import groq, gradio, and httpx
 
 3. Add this exact line so the student can paste their API key:
    GROQ_API_KEY = "YOUR_KEY_HERE"
@@ -45,6 +46,8 @@ Please generate one complete Python file using these exact requirements:
    - Builds a messages list that starts with the BUSINESS_CONTEXT as the system role
    - Loops through the history and adds each past message pair to the list so the AI remembers the full conversation
    - Appends the current user message
+   - Creates the Groq client using this exact line (do not change it):
+     client = groq.Groq(api_key=GROQ_API_KEY, http_client=httpx.Client(verify=False))
    - Calls the Groq API using the model named llama-3.3-70b-versatile with max_tokens set to 300
    - Returns the AI response text
    - Has a try except block that catches errors and returns this message if rate_limit appears in the error: "Too many messages at once! Wait a moment and try again." and returns this for any other error: "Something went wrong. Make sure your API key is correct in the code."
@@ -70,7 +73,7 @@ Rules for the code you generate:
 - Paste it into PyCharm
 - Open the PyCharm Terminal at the bottom and run:
   ```
-  pip install groq gradio
+  pip install groq gradio httpx
   ```
 - Replace `YOUR_KEY_HERE` with your Groq API key
 - Hit the green Run button
