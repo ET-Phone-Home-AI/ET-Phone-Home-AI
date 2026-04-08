@@ -1,8 +1,8 @@
 # =============================================================
 # THE SMART CHATBOT — Your Turn
 # =============================================================
-# BEFORE RUNNING: Install two packages in PyCharm
-#   Open PyCharm terminal and type: pip install groq gradio
+# BEFORE RUNNING: Install packages in PyCharm terminal:
+#   pip install groq gradio httpx
 #
 # HOW TO GET YOUR FREE API KEY:
 #   1. Go to console.groq.com
@@ -14,12 +14,9 @@
 # ⚠️ DO NOT share this file with your key still in it
 # =============================================================
 
-import ssl
-import groq
+from groq import AsyncGroq
 import gradio as gr
-
-# Fixes SSL certificate errors on university networks (VCU, etc.)
-ssl._create_default_https_context = ssl._create_unverified_context
+import httpx
 
 # --------------------------------------------------------------
 # PASTE YOUR GROQ API KEY HERE
@@ -57,9 +54,10 @@ Your personality:
 # The code below powers the AI — no need to change anything here
 # ==============================================================
 
-client = groq.Groq(api_key=GROQ_API_KEY)
+# verify=False fixes SSL certificate errors on university networks (VCU)
+client = AsyncGroq(api_key=GROQ_API_KEY, http_client=httpx.AsyncClient(verify=False))
 
-def smart_chatbot(message, history):
+async def smart_chatbot(message, history):
     messages = [{"role": "system", "content": BUSINESS_CONTEXT}]
 
     for msg in history:
@@ -68,7 +66,7 @@ def smart_chatbot(message, history):
     messages.append({"role": "user", "content": message})
 
     try:
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=messages,
             max_tokens=300
@@ -81,9 +79,10 @@ def smart_chatbot(message, history):
         return "Something went wrong. Double-check that your API key is correct."
 
 
-# This opens a chat window in your browser automatically
+# type="messages" fixes the double-submit issue with async functions
 gr.ChatInterface(
     smart_chatbot,
+    type="messages",
     title="🤖 My Business AI Assistant",
     description="Powered by Llama 3.3 via Groq — Ask me anything!"
 ).launch()
