@@ -1,9 +1,8 @@
 # =============================================================
 # THE SMART CHATBOT — Your Turn
 # =============================================================
-# BEFORE RUNNING: Install three packages in PyCharm
-#   Go to: Settings > Python Interpreter > + > search each one > Install
-#   OR open PyCharm terminal and type: pip install groq gradio httpx
+# BEFORE RUNNING: Install two packages in PyCharm
+#   Open PyCharm terminal and type: pip install groq gradio
 #
 # HOW TO GET YOUR FREE API KEY:
 #   1. Go to console.groq.com
@@ -15,9 +14,12 @@
 # ⚠️ DO NOT share this file with your key still in it
 # =============================================================
 
-from groq import AsyncGroq
+import ssl
+import groq
 import gradio as gr
-import httpx
+
+# Fixes SSL certificate errors on university networks (VCU, etc.)
+ssl._create_default_https_context = ssl._create_unverified_context
 
 # --------------------------------------------------------------
 # PASTE YOUR GROQ API KEY HERE
@@ -55,19 +57,18 @@ Your personality:
 # The code below powers the AI — no need to change anything here
 # ==============================================================
 
-# AsyncGroq + AsyncClient fixes both SSL and async/sync conflicts with Gradio
-client = AsyncGroq(api_key=GROQ_API_KEY, http_client=httpx.AsyncClient(verify=False))
+client = groq.Groq(api_key=GROQ_API_KEY)
 
-async def smart_chatbot(message, history):
+def smart_chatbot(message, history):
     messages = [{"role": "system", "content": BUSINESS_CONTEXT}]
 
     for msg in history:
-        messages.append(msg)
+        messages.append({"role": msg["role"], "content": msg["content"]})
 
     messages.append({"role": "user", "content": message})
 
     try:
-        response = await client.chat.completions.create(
+        response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=messages,
             max_tokens=300
