@@ -8,7 +8,7 @@ Requires: pip install dash plotly requests numpy
 import re
 import requests
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import plotly.graph_objects as go
 from dash import Dash, dcc, html, Input, Output, callback
 import dash_bootstrap_components as dbc
@@ -58,7 +58,7 @@ def get_apod():
 
 
 def get_neos():
-    today = datetime.utcnow().strftime("%Y-%m-%d")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     try:
         r = requests.get(
             "https://api.nasa.gov/neo/rest/v1/feed",
@@ -79,7 +79,7 @@ MOON_ID   = "301"   # Earth's Moon
 
 def _horizons_query(command: str) -> dict | None:
     """Fetch current state vectors from JPL Horizons API."""
-    now  = datetime.utcnow()
+    now  = datetime.now(timezone.utc)
     stop = now + timedelta(minutes=30)
     params = {
         "format":      "json",
@@ -149,7 +149,7 @@ def get_live_telemetry() -> dict:
         "dist_moon":   dist_moon,           # km or None
         "speed_kms":   speed_kms,           # km/s
         "speed_kmh":   speed_kms * 3600,    # km/h
-        "updated":     datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+        "updated":     datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
     }
 
 
