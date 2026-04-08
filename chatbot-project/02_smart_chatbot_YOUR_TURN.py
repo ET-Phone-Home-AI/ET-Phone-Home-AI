@@ -79,10 +79,9 @@ async def smart_chatbot(message, history):
         return "Something went wrong. Double-check that your API key is correct."
 
 
-# type="messages" fixes the double-submit issue with async functions
+# This opens a chat window in your browser automatically
 gr.ChatInterface(
     smart_chatbot,
-    type="messages",
     title="🤖 My Business AI Assistant",
     description="Powered by Llama 3.3 via Groq — Ask me anything!"
 ).launch()
