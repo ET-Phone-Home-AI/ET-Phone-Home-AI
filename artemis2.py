@@ -235,11 +235,10 @@ def timeline_fig():
 def distance_fig():
     days = np.linspace(0, 10, 600)
     peak_day, peak_dist = 4.5, 370_000
-    dist = np.where(
-        days <= peak_day,
-        peak_dist * np.sin(np.pi * days / (2 * peak_day)) ** 1.4,
-        peak_dist * np.sin(np.pi * (10 - days) / (2 * (10 - peak_day))) ** 1.4,
-    )
+    mask = days <= peak_day
+    dist = np.empty_like(days)
+    dist[mask]  = peak_dist * np.sin(np.pi * days[mask]  / (2 * peak_day)) ** 1.4
+    dist[~mask] = peak_dist * np.sin(np.pi * (10 - days[~mask]) / (2 * (10 - peak_day))) ** 1.4
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=days, y=dist / 1000, mode="lines",
