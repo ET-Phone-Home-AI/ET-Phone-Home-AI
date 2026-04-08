@@ -5,9 +5,10 @@ Run: python artemis2.py  →  open http://127.0.0.1:8050
 Requires: pip install dash plotly requests numpy
 """
 
+import re
 import requests
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 import plotly.graph_objects as go
 from dash import Dash, dcc, html, Input, Output, callback
 import dash_bootstrap_components as dbc
@@ -69,6 +70,87 @@ def get_neos():
     except Exception:
         pass
     return []
+
+
+# ── JPL Horizons Live Telemetry ───────────────────────────────────────────────
+# Orion spacecraft Horizons ID: -64 (used for Artemis I; Artemis II uses same bus)
+ORION_ID  = "-64"
+MOON_ID   = "301"   # Earth's Moon
+
+def _horizons_query(command: str) -> dict | None:
+    """Fetch current state vectors from JPL Horizons API."""
+    now  = datetime.utcnow()
+    stop = now + timedelta(minutes=30)
+    params = {
+        "format":      "json",
+        "COMMAND":     command,
+        "OBJ_DATA":    "NO",
+        "MAKE_EPHEM":  "YES",
+        "EPHEM_TYPE":  "VECTORS",
+        "CENTER":      "500@399",          # geocenter
+        "START_TIME":  now.strftime("'%Y-%m-%d %H:%M'"),
+        "STOP_TIME":   stop.strftime("'%Y-%m-%d %H:%M'"),
+        "STEP_SIZE":   "'30m'",
+        "VEC_TABLE":   "2",                # X,Y,Z + VX,VY,VZ
+    }
+    try:
+        r = requests.get(
+            "https://ssd.jpl.nasa.gov/api/horizons.api",
+            params=params, timeout=15,
+        )
+        return r.json() if r.ok else None
+    except Exception:
+        return None
+
+
+def _parse_vectors(result_text: str) -> dict | None:
+    """Extract the first X,Y,Z / VX,VY,VZ block from Horizons output."""
+    soe = result_text.find("$$SOE")
+    eoe = result_text.find("$$EOE")
+    if soe == -1 or eoe == -1:
+        return None
+    block = result_text[soe:eoe]
+    xyz = re.findall(r"X\s*=\s*([-\dE+.]+)\s+Y\s*=\s*([-\dE+.]+)\s+Z\s*=\s*([-\dE+.]+)", block)
+    vel = re.findall(r"VX=\s*([-\dE+.]+)\s+VY=\s*([-\dE+.]+)\s+VZ=\s*([-\dE+.]+)", block)
+    if not xyz or not vel:
+        return None
+    x, y, z    = map(float, xyz[0])
+    vx, vy, vz = map(float, vel[0])
+    return {"x": x, "y": y, "z": z, "vx": vx, "vy": vy, "vz": vz}
+
+
+def get_live_telemetry() -> dict:
+    """
+    Return live distance-from-Earth, distance-to-Moon, and speed for Orion.
+    Falls back to a 'pre-launch' message if spacecraft not yet in Horizons.
+    """
+    orion_raw = _horizons_query(ORION_ID)
+    moon_raw  = _horizons_query(MOON_ID)
+
+    orion = _parse_vectors(orion_raw.get("result", "")) if orion_raw else None
+    moon  = _parse_vectors(moon_raw.get("result", ""))  if moon_raw  else None
+
+    if orion is None:
+        return {"status": "pre-launch"}   # spacecraft not yet tracked
+
+    dist_earth = (orion["x"]**2 + orion["y"]**2 + orion["z"]**2) ** 0.5
+    speed_kms  = (orion["vx"]**2 + orion["vy"]**2 + orion["vz"]**2) ** 0.5
+
+    dist_moon = None
+    if moon:
+        dx = orion["x"] - moon["x"]
+        dy = orion["y"] - moon["y"]
+        dz = orion["z"] - moon["z"]
+        dist_moon = (dx**2 + dy**2 + dz**2) ** 0.5
+
+    return {
+        "status":      "live",
+        "dist_earth":  dist_earth,          # km
+        "dist_moon":   dist_moon,           # km or None
+        "speed_kms":   speed_kms,           # km/s
+        "speed_kmh":   speed_kms * 3600,    # km/h
+        "updated":     datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+    }
 
 
 # ── Figures ───────────────────────────────────────────────────────────────────
@@ -250,6 +332,45 @@ app.layout = dbc.Container(fluid=True, style={"background": "#06060f", "minHeigh
     # Stat cards
     dbc.Row([stat_card(s["label"], s["value"]) for s in STATS], className="mb-4 g-3"),
 
+    # ── Live Telemetry ──────────────────────────────────────────────────────
+    dbc.Card([
+        dbc.CardBody([
+            dbc.Row([
+                dbc.Col(html.H5("📡 LIVE TELEMETRY", style={"color": ACCENT, "letterSpacing": "2px",
+                                                             "fontWeight": "bold", "margin": 0}), width="auto"),
+                dbc.Col(html.Small(id="telem-updated", className="text-muted",
+                                   style={"lineHeight": "2"}), width="auto"),
+                dbc.Col(dbc.Badge(id="telem-status", color="success", className="ms-2",
+                                  style={"fontSize": "0.7rem", "lineHeight": "2"}), width="auto"),
+            ], align="center", className="mb-3"),
+            dbc.Row([
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.P("DISTANCE FROM EARTH", className="text-muted mb-1",
+                           style={"fontSize": "0.7rem", "letterSpacing": "1px"}),
+                    html.H3(id="telem-earth", style={"color": "#1a9eff", "fontWeight": "900", "margin": 0}),
+                    html.Small("kilometers", style={"color": "#8888aa"}),
+                ]), style={"background": "#0a0a2a", "border": "1px solid #1a9eff"}), width=4),
+
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.P("DISTANCE FROM MOON", className="text-muted mb-1",
+                           style={"fontSize": "0.7rem", "letterSpacing": "1px"}),
+                    html.H3(id="telem-moon", style={"color": "#cccccc", "fontWeight": "900", "margin": 0}),
+                    html.Small("kilometers", style={"color": "#8888aa"}),
+                ]), style={"background": "#0a0a2a", "border": "1px solid #555577"}), width=4),
+
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.P("CURRENT SPEED", className="text-muted mb-1",
+                           style={"fontSize": "0.7rem", "letterSpacing": "1px"}),
+                    html.H3(id="telem-speed-kms", style={"color": ACCENT, "fontWeight": "900", "margin": 0}),
+                    html.Small(id="telem-speed-kmh", style={"color": "#8888aa"}),
+                ]), style={"background": "#0a0a2a", "border": "1px solid #ff7c00"}), width=4),
+            ], className="g-3"),
+        ])
+    ], style={"background": PANEL, "border": "1px solid #2a2a6a", "marginBottom": "24px"}),
+
+    # Auto-refresh every 60 s
+    dcc.Interval(id="telem-interval", interval=60_000, n_intervals=0),
+
     # Trajectory
     dbc.Row([
         dbc.Col(dcc.Graph(figure=trajectory_fig(), config={"displayModeBar": False}), width=8),
@@ -295,6 +416,29 @@ app.layout = dbc.Container(fluid=True, style={"background": "#06060f", "minHeigh
     html.P("Data sources: NASA Open APIs (api.nasa.gov) · Trajectory based on Artemis II mission profile",
            className="text-muted text-center", style={"fontSize": "0.75rem", "marginTop": "20px"}),
 ])
+
+
+@callback(
+    Output("telem-earth",     "children"),
+    Output("telem-moon",      "children"),
+    Output("telem-speed-kms", "children"),
+    Output("telem-speed-kmh", "children"),
+    Output("telem-updated",   "children"),
+    Output("telem-status",    "children"),
+    Input("telem-interval",   "n_intervals"),
+)
+def refresh_telemetry(_):
+    t = get_live_telemetry()
+    if t["status"] == "pre-launch":
+        na = "—"
+        return na, na, na, "Awaiting launch", "Pre-launch", "PRE-LAUNCH"
+
+    earth  = f"{t['dist_earth']:,.0f}"
+    moon   = f"{t['dist_moon']:,.0f}" if t["dist_moon"] is not None else "—"
+    spd_s  = f"{t['speed_kms']:,.2f} km/s"
+    spd_h  = f"{t['speed_kmh']:,.0f} km/h"
+    upd    = f"Updated: {t['updated']}"
+    return earth, moon, spd_s, spd_h, upd, "LIVE"
 
 
 @callback(Output("apod-output", "children"), Input("apod-btn", "n_clicks"), prevent_initial_call=True)
