@@ -61,9 +61,8 @@ client = AsyncGroq(api_key=GROQ_API_KEY, http_client=httpx.AsyncClient(verify=Fa
 async def smart_chatbot(message, history):
     messages = [{"role": "system", "content": BUSINESS_CONTEXT}]
 
-    for human_msg, ai_msg in history:
-        messages.append({"role": "user",      "content": human_msg})
-        messages.append({"role": "assistant", "content": ai_msg})
+    for msg in history:
+        messages.append(msg)
 
     messages.append({"role": "user", "content": message})
 
