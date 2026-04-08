@@ -31,7 +31,7 @@ Please generate one complete Python file using these exact requirements:
    pip install gradio
    pip install httpx
 
-2. Import groq, gradio, and httpx
+2. Import AsyncGroq from groq, import gradio, and import httpx
 
 3. Add this exact line so the student can paste their API key:
    GROQ_API_KEY = "YOUR_KEY_HERE"
@@ -47,8 +47,10 @@ Please generate one complete Python file using these exact requirements:
    - Loops through the history and adds each past message pair to the list so the AI remembers the full conversation
    - Appends the current user message
    - Creates the Groq client using this exact line (do not change it):
-     client = groq.Groq(api_key=GROQ_API_KEY, http_client=httpx.Client(verify=False))
-   - Calls the Groq API using the model named llama-3.3-70b-versatile with max_tokens set to 300
+     client = AsyncGroq(api_key=GROQ_API_KEY, http_client=httpx.AsyncClient(verify=False))
+   - The function must be defined as async: async def smart_chatbot(message, history)
+   - Calls the Groq API using: await client.chat.completions.create(...)
+   - Uses the model named llama-3.3-70b-versatile with max_tokens set to 300
    - Returns the AI response text
    - Has a try except block that catches errors and returns this message if rate_limit appears in the error: "Too many messages at once! Wait a moment and try again." and returns this for any other error: "Something went wrong. Make sure your API key is correct in the code."
 

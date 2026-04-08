@@ -15,7 +15,7 @@
 # ⚠️ DO NOT share this file with your key still in it
 # =============================================================
 
-import groq
+from groq import AsyncGroq
 import gradio as gr
 import httpx
 
@@ -55,10 +55,10 @@ Your personality:
 # The code below powers the AI — no need to change anything here
 # ==============================================================
 
-# verify=False fixes SSL certificate issues on university networks (e.g. VCU)
-client = groq.Groq(api_key=GROQ_API_KEY, http_client=httpx.Client(verify=False))
+# AsyncGroq + AsyncClient fixes both SSL and async/sync conflicts with Gradio
+client = AsyncGroq(api_key=GROQ_API_KEY, http_client=httpx.AsyncClient(verify=False))
 
-def smart_chatbot(message, history):
+async def smart_chatbot(message, history):
     messages = [{"role": "system", "content": BUSINESS_CONTEXT}]
 
     for human_msg, ai_msg in history:
@@ -68,7 +68,7 @@ def smart_chatbot(message, history):
     messages.append({"role": "user", "content": message})
 
     try:
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=messages,
             max_tokens=300
