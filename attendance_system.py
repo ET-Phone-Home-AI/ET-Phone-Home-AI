@@ -88,6 +88,24 @@ def add_entry():
     print(f"Saved! {name} is now registered.\n")
 
 
+def show_database():
+    print("\n--- Show Database ---")
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT name FROM students ORDER BY name ASC"
+    ).fetchall()
+    conn.close()
+
+    if not rows:
+        print("No students registered yet.\n")
+        return
+
+    print()
+    for (name,) in rows:
+        print(f"  {name}")
+    print()
+
+
 def print_tag_card(row):
     # row = (tag_uid, name, department, fun_fact, added_on)
     _, name, department, fun_fact, added_on = row
@@ -221,11 +239,12 @@ MENU = """
    AI CLASS ATTENDANCE SYSTEM
 ==========================================
 1. Add new entry to database
-2. Scan a tag
-3. Take attendance
-4. Attendance list
-5. Delete the database
-6. Exit
+2. Show database
+3. Scan a tag
+4. Take attendance
+5. Attendance list
+6. Delete the database
+7. Exit
 ==========================================
 """
 
@@ -234,22 +253,23 @@ def main():
     init_db()
     actions = {
         "1": add_entry,
-        "2": scan_tag,
-        "3": take_attendance,
-        "4": attendance_list,
-        "5": delete_database,
+        "2": show_database,
+        "3": scan_tag,
+        "4": take_attendance,
+        "5": attendance_list,
+        "6": delete_database,
     }
     while True:
         print(MENU)
-        choice = input("Choose an option (1-6) > ").strip()
-        if choice == "6":
+        choice = input("Choose an option (1-7) > ").strip()
+        if choice == "7":
             print("Goodbye!")
             sys.exit(0)
         action = actions.get(choice)
         if action:
             action()
         else:
-            print("Invalid option. Please choose 1-6.\n")
+            print("Invalid option. Please choose 1-7.\n")
 
 
 if __name__ == "__main__":
