@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rectangular Waveguide Explorer</title>
+<meta name="description" content="Interactive rectangular waveguide mode explorer — cutoff map, cross-section fields, and dispersion, from closed-form theory.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#E9EEF1; --panel:#F7F9FA; --ink:#14232C; --ink2:#4C6673; --rule:#C1CED6;
+  --brass:#A3701A; --teal:#136E7B; --alert:#95304A; --grid:#D4DEE4;
+  --serif:"IBM Plex Serif",Georgia,"Times New Roman",serif;
+  --sans:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
+  --mono:"IBM Plex Mono","SFMono-Regular",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0D171D; --panel:#152228; --ink:#DBE6EA; --ink2:#8DA5B0; --rule:#2A3A43;
+    --brass:#D8A14C; --teal:#4FBDCA; --alert:#D2607C; --grid:#223138;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0D171D; --panel:#152228; --ink:#DBE6EA; --ink2:#8DA5B0; --rule:#2A3A43;
+  --brass:#D8A14C; --teal:#4FBDCA; --alert:#D2607C; --grid:#223138;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:var(--sans); font-size:15px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 56px}
+header.top{border-bottom:1px solid var(--rule);padding-bottom:18px;margin-bottom:22px}
+h1{font-family:var(--serif);font-weight:600;font-size:clamp(24px,4vw,34px);margin:0 0 6px;letter-spacing:-.01em}
+.lede{font-family:var(--serif);color:var(--ink2);max-width:62ch;margin:0;font-size:16px;line-height:1.55}
+.bench{display:grid;grid-template-columns:272px minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:920px){.bench{grid-template-columns:1fr}}
+.rail{background:var(--panel);border:1px solid var(--rule);border-radius:3px;padding:16px}
+.rail h2,.stage h2{font-family:var(--serif);font-size:15px;font-weight:600;margin:0 0 10px}
+.ctl{margin-bottom:15px}
+.ctl label{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13px;color:var(--ink2);margin-bottom:5px}
+.ctl label b{font-family:var(--mono);font-weight:500;color:var(--ink);font-size:13px}
+input[type=range]{width:100%;accent-color:var(--teal);height:22px}
+input[type=range]:focus-visible{outline:2px solid var(--teal);outline-offset:3px}
+.presets{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:16px}
+.chip{font-family:var(--mono);font-size:11.5px;padding:4px 7px;border:1px solid var(--rule);background:transparent;color:var(--ink2);border-radius:2px;cursor:pointer}
+.chip:hover{border-color:var(--teal);color:var(--ink)}
+.chip[aria-pressed=true]{background:var(--teal);border-color:var(--teal);color:var(--panel)}
+.chip:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.mbtn{text-align:left;font-family:var(--mono);font-size:12px;padding:5px 7px;border:1px solid var(--rule);background:transparent;color:var(--ink);border-radius:2px;cursor:pointer;line-height:1.25}
+.mbtn span{display:block;font-size:10.5px;color:var(--ink2)}
+.mbtn.off{opacity:.45}
+.mbtn:hover{border-color:var(--brass)}
+.mbtn[aria-pressed=true]{background:var(--brass);border-color:var(--brass);color:var(--panel)}
+.mbtn[aria-pressed=true] span{color:var(--panel);opacity:.85}
+.mbtn:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+figure{margin:0 0 18px;background:var(--panel);border:1px solid var(--rule);border-radius:3px;padding:12px 14px 10px}
+figcaption{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:12.5px;color:var(--ink2);margin-bottom:8px}
+figcaption strong{font-family:var(--serif);font-size:14px;font-weight:600;color:var(--ink)}
+canvas{display:block;width:100%;max-width:100%}
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media (max-width:760px){.duo{grid-template-columns:1fr}}
+.status{display:inline-block;font-family:var(--mono);font-size:11.5px;padding:2px 7px;border-radius:2px;border:1px solid currentColor}
+.status.go{color:var(--teal)}
+.status.no{color:var(--alert)}
+.readouts{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:3px;overflow:hidden;margin-bottom:22px}
+.ro{background:var(--panel);padding:9px 11px}
+.ro dt{font-size:11.5px;color:var(--ink2);margin:0 0 2px}
+.ro dd{margin:0;font-family:var(--mono);font-size:16px;font-weight:500}
+.ro dd small{font-family:var(--sans);font-size:11px;color:var(--ink2);font-weight:400}
+.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(248px,1fr));gap:16px;margin-top:8px}
+.note{border-top:2px solid var(--brass);padding-top:10px}
+.note:nth-child(2){border-top-color:var(--teal)}
+.note:nth-child(3){border-top-color:var(--ink2)}
+.note h3{font-family:var(--serif);font-size:15px;margin:0 0 5px;font-weight:600}
+.note p{margin:0;font-family:var(--serif);font-size:14px;line-height:1.55;color:var(--ink2)}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--ink2);margin-top:6px}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.toggle{display:flex;gap:5px}
+footer.site{margin-top:28px;padding-top:16px;border-top:1px solid var(--rule);color:var(--ink2);font-size:13px;font-family:var(--serif)}
+footer.site a{color:var(--ink2)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>Rectangular Waveguide Explorer</h1>
+  <p class="lede">Change the guide dimensions and the drive frequency, and watch which modes are allowed to travel. Every number below comes from the closed-form solution, not from a solver.</p>
+</header>
+
+<div class="bench">
+
+  <aside class="rail">
+    <h2>Guide</h2>
+    <div class="presets" id="presets"></div>
+
+    <div class="ctl">
+      <label for="aS">Broad wall <i>a</i> <b id="aV">22.86 mm</b></label>
+      <input type="range" id="aS" min="3" max="80" step="0.01" value="22.86">
+    </div>
+    <div class="ctl">
+      <label for="bS">Narrow wall <i>b</i> <b id="bV">10.16 mm</b></label>
+      <input type="range" id="bS" min="1" max="40" step="0.01" value="10.16">
+    </div>
+    <div class="ctl">
+      <label for="eS">Fill &epsilon;<sub>r</sub> <b id="eV">1.00</b></label>
+      <input type="range" id="eS" min="1" max="10" step="0.01" value="1">
+    </div>
+    <div class="ctl">
+      <label for="fS">Frequency <b id="fV">10.00 GHz</b></label>
+      <input type="range" id="fS" min="0" max="1000" step="1" value="500">
+    </div>
+
+    <h2 style="margin-top:20px">Mode</h2>
+    <div class="modes" id="modes"></div>
+
+    <h2 style="margin-top:20px">Arrows show</h2>
+    <div class="toggle">
+      <button class="chip" id="arrE" aria-pressed="true">E field</button>
+      <button class="chip" id="arrH" aria-pressed="false">H field</button>
+    </div>
+  </aside>
+
+  <div class="stage">
+
+    <figure>
+      <figcaption>
+        <strong>Cutoff map</strong>
+        <span id="bandTxt"></span>
+      </figcaption>
+      <canvas id="cSpec" height="150"></canvas>
+      <div class="legend">
+        <span><i style="background:var(--teal)"></i>single-mode band</span>
+        <span><i style="background:var(--brass)"></i>operating frequency</span>
+      </div>
+    </figure>
+
+    <div class="duo">
+      <figure>
+        <figcaption><strong>Cross section</strong><span id="fieldTag"></span></figcaption>
+        <canvas id="cField" height="250"></canvas>
+        <div class="legend" id="fieldLegend"></div>
+      </figure>
+
+      <figure>
+        <figcaption><strong>Dispersion</strong><span>&beta; vs frequency</span></figcaption>
+        <canvas id="cDisp" height="250"></canvas>
+        <div class="legend">
+          <span><i style="background:var(--brass)"></i>selected mode</span>
+          <span><i style="background:var(--ink2)"></i>other modes</span>
+          <span><i style="background:var(--teal)"></i>unbounded medium</span>
+        </div>
+      </figure>
+    </div>
+
+  </div>
+</div>
+
+<dl class="readouts" id="ro"></dl>
+
+<div class="notes">
+  <div class="note">
+    <h3>Why <i>a</i> sets everything</h3>
+    <p>The dominant TE<sub>10</sub> cutoff depends only on the broad wall: half a wavelength has to fit across <i>a</i>. Slide <i>b</i> and watch the cutoff refuse to move — <i>b</i> buys you power handling and lower loss, not bandwidth.</p>
+  </div>
+  <div class="note">
+    <h3>Below cutoff is not reflection</h3>
+    <p>Under <i>f</i><sub>c</sub> the mode still exists, but &beta; turns imaginary and the field decays as e<sup>&minus;&alpha;z</sup> without carrying power. That evanescent tail is exactly what a waveguide-below-cutoff attenuator sells.</p>
+  </div>
+  <div class="note">
+    <h3>The usable band is narrow on purpose</h3>
+    <p>Standard guides are specified from roughly 1.25 <i>f</i><sub>c</sub> to 1.9 <i>f</i><sub>c</sub>: far enough above cutoff that dispersion and loss are tame, far enough below the next mode that a discontinuity cannot excite it.</p>
+  </div>
+</div>
+
+<footer class="site">Prof. E. Topsakal &middot; VCU ECE &mdash; <a href="../patch-antenna/">Patch Antenna Bench &rarr;</a></footer>
+
+</div>
+
+<script>
+(function(){
+"use strict";
+const C=299792458, ETA0=376.730313668, MU0=4e-7*Math.PI, SIG=5.8e7;
+
+const GUIDES=[
+  {n:"WR-284",a:72.14,b:34.04},{n:"WR-137",a:34.85,b:15.80},
+  {n:"WR-90", a:22.86,b:10.16},{n:"WR-62", a:15.80,b:7.90},
+  {n:"WR-42", a:10.67,b:4.32},{n:"WR-28", a:7.112,b:3.556}
+];
+const SUB=["₀","₁","₂","₃","₄"];
+const st={a:0.02286,b:0.01016,er:1,f:10e9,mode:{t:"TE",m:1,n:0},arrows:"E"};
+
+const $=id=>document.getElementById(id);
+const col=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+function fcOf(t,m,n,a,b,er){
+  const kc=Math.hypot(m*Math.PI/a, n*Math.PI/b);
+  return C*kc/(2*Math.PI*Math.sqrt(er));
+}
+function modeList(){
+  const out=[];
+  for(let m=0;m<=3;m++)for(let n=0;n<=3;n++){
+    if(m===0&&n===0) continue;
+    out.push({t:"TE",m,n,fc:fcOf("TE",m,n,st.a,st.b,st.er)});
+    if(m>=1&&n>=1) out.push({t:"TM",m,n,fc:fcOf("TM",m,n,st.a,st.b,st.er)});
+  }
+  out.sort((p,q)=>p.fc-q.fc);
+  return out;
+}
+const label=md=>md.t+SUB[md.m]+SUB[md.n];
+
+function props(md){
+  const fc=fcOf(md.t,md.m,md.n,st.a,st.b,st.er);
+  const er=st.er, f=st.f;
+  const k=2*Math.PI*f*Math.sqrt(er)/C;
+  const kc=2*Math.PI*fc*Math.sqrt(er)/C;
+  const prop=f>fc;
+  const r=prop?Math.sqrt(1-(fc/f)**2):0;
+  const beta=prop?Math.sqrt(k*k-kc*kc):0;
+  const alpha=prop?0:Math.sqrt(kc*kc-k*k);
+  const eta=ETA0/Math.sqrt(er);
+  return {fc,k,kc,prop,r,beta,alpha,eta,
+    lam:C/(f*Math.sqrt(er)),
+    lamg:prop?2*Math.PI/beta:Infinity,
+    Z:prop?(md.t==="TE"?eta/r:eta*r):NaN,
+    vp:prop?2*Math.PI*f/beta:NaN,
+    vg:prop?(C/Math.sqrt(er))*r:NaN};
+}
+function lossTE10(){
+  const fc=fcOf("TE",1,0,st.a,st.b,st.er), f=st.f;
+  if(f<=fc) return NaN;
+  const Rs=Math.sqrt(Math.PI*f*MU0/SIG), eta=ETA0/Math.sqrt(st.er);
+  const r=Math.sqrt(1-(fc/f)**2);
+  const a=Rs/(st.b*eta*r)*(1+2*st.b/st.a*(fc/f)**2);
+  return 8.685889638*a; // dB/m
+}
+
+/* ---- field components, normalised ---- */
+function fieldAt(md,x,y){ // x,y in metres
+  const m=md.m,n=md.n,a=st.a,b=st.b;
+  const cx=Math.cos(m*Math.PI*x/a), sx=Math.sin(m*Math.PI*x/a);
+  const cy=Math.cos(n*Math.PI*y/b), sy=Math.sin(n*Math.PI*y/b);
+  let Ex,Ey,Lz;
+  if(md.t==="TE"){ Ex=(n/b)*cx*sy; Ey=-(m/a)*sx*cy; Lz=cx*cy; }
+  else { Ex=(m/a)*cx*sy; Ey=(n/b)*sx*cy; Lz=sx*sy; }
+  return {Ex,Ey,Hx:-Ey,Hy:Ex,Lz};
+}
+
+function fit(cv,hCss){
+  const w=cv.parentElement.clientWidth-28;
+  const dpr=window.devicePixelRatio||1;
+  cv.style.width=w+"px"; cv.style.height=hCss+"px";
+  cv.width=Math.round(w*dpr); cv.height=Math.round(hCss*dpr);
+  const g=cv.getContext("2d"); g.setTransform(dpr,0,0,dpr,0,0);
+  g.clearRect(0,0,w,hCss);
+  return {g,w,h:hCss};
+}
+function fmtF(x){ // Hz -> GHz string
+  return (x/1e9).toFixed(x<10e9?3:2);
+}
+
+/* ---------------- cutoff map ---------------- */
+function drawSpec(){
+  const {g,w,h}=fit($("cSpec"),150);
+  const L=40,R=14,T=16,B=30, pw=w-L-R, ph=h-T-B;
+  const list=modeList();
+  const fmax=Math.max(st.f*1.15, list[Math.min(7,list.length-1)].fc*1.1);
+  const X=f=>L+pw*Math.min(f,fmax)/fmax;
+  const ink=col("--ink"),ink2=col("--ink2"),br=col("--brass"),te=col("--teal"),rule=col("--rule");
+
+  // single mode band
+  const f1=list[0].fc, f2=list[1].fc;
+  g.fillStyle=te; g.globalAlpha=.14;
+  g.fillRect(X(f1),T,X(Math.min(f2,fmax))-X(f1),ph);
+  g.globalAlpha=1;
+
+  // axis
+  g.strokeStyle=rule; g.lineWidth=1;
+  g.beginPath(); g.moveTo(L,T+ph+.5); g.lineTo(L+pw,T+ph+.5); g.stroke();
+  g.fillStyle=ink2; g.font="11px "+col("--mono");
+  const step=Math.pow(10,Math.floor(Math.log10(fmax/1e9)))* (fmax/1e9>50?10:fmax/1e9>20?5:fmax/1e9>6?2:1);
+  for(let t=0;t<=fmax/1e9+1e-9;t+=step){
+    const x=X(t*1e9); if(x>L+pw+1) break;
+    g.beginPath(); g.moveTo(x,T+ph); g.lineTo(x,T+ph+4); g.stroke();
+    g.textAlign="center"; g.fillText(t.toFixed(step<1?1:0),x,T+ph+16);
+  }
+  g.textAlign="left"; g.fillText("GHz",L+pw-22,T+ph+27);
+
+  // mode ticks
+  let row=0;
+  list.slice(0,10).forEach(md=>{
+    if(md.fc>fmax) return;
+    const x=X(md.fc), sel=md.t===st.mode.t&&md.m===st.mode.m&&md.n===st.mode.n;
+    g.strokeStyle=sel?br:ink2; g.lineWidth=sel?2:1;
+    g.globalAlpha=sel?1:.7;
+    g.beginPath(); g.moveTo(x,T+6); g.lineTo(x,T+ph); g.stroke();
+    g.globalAlpha=1;
+    g.fillStyle=sel?br:ink2; g.font=(sel?"500 ":"")+"11px "+col("--mono");
+    g.textAlign="center";
+    g.fillText(label(md),x,T+4+row*13);
+    row=(row+1)%2;
+  });
+
+  // operating frequency
+  const xf=X(st.f);
+  g.strokeStyle=br; g.lineWidth=2;
+  g.beginPath(); g.moveTo(xf,T); g.lineTo(xf,T+ph); g.stroke();
+  g.fillStyle=br; g.beginPath();
+  g.moveTo(xf,T+ph); g.lineTo(xf-5,T+ph+8); g.lineTo(xf+5,T+ph+8); g.closePath(); g.fill();
+
+  $("bandTxt").innerHTML="single mode "+fmtF(f1)+"–"+fmtF(f2)+" GHz";
+}
+
+/* ---------------- cross section ---------------- */
+function drawField(){
+  const cv=$("cField");
+  const {g,w,h}=fit(cv,250);
+  const md=st.mode, p=props(md);
+  const pad=26;
+  const aspect=st.b/st.a;
+  let pw=w-2*pad, ph=pw*aspect;
+  if(ph>h-2*pad-16){ ph=h-2*pad-16; pw=ph/aspect; }
+  const x0=(w-pw)/2, y0=(h-ph)/2-4;
+  const ink=col("--ink"),ink2=col("--ink2"),br=col("--brass"),te=col("--teal");
+
+  // longitudinal component heatmap
+  const NX=Math.max(40,Math.round(pw/3)), NY=Math.max(20,Math.round(ph/3));
+  let lmax=1e-12;
+  const buf=[];
+  for(let i=0;i<NX;i++){for(let j=0;j<NY;j++){
+    const x=(i+.5)/NX*st.a, y=(j+.5)/NY*st.b;
+    const v=fieldAt(md,x,y).Lz; buf.push(v); lmax=Math.max(lmax,Math.abs(v));
+  }}
+  const cw=pw/NX+0.6, chh=ph/NY+0.6;
+  let idx=0;
+  for(let i=0;i<NX;i++)for(let j=0;j<NY;j++){
+    const v=buf[idx++]/lmax;
+    if(Math.abs(v)<0.015) continue;
+    g.globalAlpha=Math.min(.8,Math.abs(v)*.8);
+    g.fillStyle=v>0?br:te;
+    g.fillRect(x0+i*pw/NX, y0+(NY-1-j)*ph/NY, cw, chh);
+  }
+  g.globalAlpha=1;
+
+  // arrows
+  const AX=13, AY=Math.max(4,Math.round(13*aspect));
+  let amax=1e-12; const av=[];
+  for(let i=0;i<AX;i++)for(let j=0;j<AY;j++){
+    const x=(i+.5)/AX*st.a, y=(j+.5)/AY*st.b, f=fieldAt(md,x,y);
+    const vx=st.arrows==="E"?f.Ex:f.Hx, vy=st.arrows==="E"?f.Ey:f.Hy;
+    av.push([vx,vy]); amax=Math.max(amax,Math.hypot(vx,vy));
+  }
+  const maxLen=Math.min(pw/AX,ph/AY)*0.92;
+  g.strokeStyle=st.arrows==="E"?br:te; g.fillStyle=g.strokeStyle; g.lineWidth=1.4;
+  idx=0;
+  for(let i=0;i<AX;i++)for(let j=0;j<AY;j++){
+    const [vx,vy]=av[idx++]; const mag=Math.hypot(vx,vy)/amax;
+    if(mag<0.06) continue;
+    const cx=x0+(i+.5)*pw/AX, cy=y0+ph-(j+.5)*ph/AY;
+    const ux=vx/Math.hypot(vx,vy), uy=-vy/Math.hypot(vx,vy);
+    const L=maxLen*mag;
+    g.globalAlpha=.35+.65*mag;
+    g.beginPath(); g.moveTo(cx-ux*L/2,cy-uy*L/2); g.lineTo(cx+ux*L/2,cy+uy*L/2); g.stroke();
+    const hx=cx+ux*L/2, hy=cy+uy*L/2, s=Math.min(4.5,L*0.42);
+    g.beginPath();
+    g.moveTo(hx,hy);
+    g.lineTo(hx-ux*s-uy*s*0.55, hy-uy*s+ux*s*0.55);
+    g.lineTo(hx-ux*s+uy*s*0.55, hy-uy*s-ux*s*0.55);
+    g.closePath(); g.fill();
+  }
+  g.globalAlpha=1;
+
+  // walls
+  g.strokeStyle=ink; g.lineWidth=2.5;
+  g.strokeRect(x0,y0,pw,ph);
+  g.font="11.5px "+col("--mono"); g.fillStyle=ink2; g.textAlign="center";
+  g.fillText("a = "+(st.a*1000).toFixed(2)+" mm", x0+pw/2, y0+ph+18);
+  g.save(); g.translate(x0-10,y0+ph/2); g.rotate(-Math.PI/2); g.textAlign="center";
+  g.fillText("b = "+(st.b*1000).toFixed(2)+" mm",0,0); g.restore();
+
+  const lz=md.t==="TE"?"H<sub>z</sub>":"E<sub>z</sub>";
+  $("fieldTag").innerHTML=label(md)+(p.prop?"":" &middot; evanescent");
+  $("fieldLegend").innerHTML=
+    '<span><i style="background:var(--brass)"></i>'+lz+' out of page</span>'+
+    '<span><i style="background:var(--teal)"></i>'+lz+' into page</span>'+
+    '<span>arrows: transverse '+st.arrows+'</span>';
+}
+
+/* ---------------- dispersion ---------------- */
+function drawDisp(){
+  const {g,w,h}=fit($("cDisp"),250);
+  const L=46,R=12,T=12,B=32, pw=w-L-R, ph=h-T-B;
+  const list=modeList().slice(0,5);
+  const fmax=Math.max(st.f*1.15, list[list.length-1].fc*1.25);
+  const bmax=2*Math.PI*fmax*Math.sqrt(st.er)/C;
+  const X=f=>L+pw*f/fmax, Y=b=>T+ph-ph*b/bmax;
+  const ink=col("--ink"),ink2=col("--ink2"),br=col("--brass"),te=col("--teal"),grid=col("--grid");
+
+  g.strokeStyle=grid; g.lineWidth=1;
+  for(let i=0;i<=4;i++){
+    const y=T+ph*i/4; g.beginPath(); g.moveTo(L,y+.5); g.lineTo(L+pw,y+.5); g.stroke();
+  }
+  // light line
+  g.strokeStyle=te; g.lineWidth=1.5; g.setLineDash([5,4]);
+  g.beginPath(); g.moveTo(X(0),Y(0)); g.lineTo(X(fmax),Y(bmax)); g.stroke();
+  g.setLineDash([]);
+
+  list.forEach(md=>{
+    const sel=md.t===st.mode.t&&md.m===st.mode.m&&md.n===st.mode.n;
+    g.strokeStyle=sel?br:ink2; g.lineWidth=sel?2.4:1.2; g.globalAlpha=sel?1:.55;
+    g.beginPath(); let first=true;
+    for(let i=0;i<=160;i++){
+      const f=md.fc+(fmax-md.fc)*i/160;
+      if(f<md.fc) continue;
+      const k=2*Math.PI*f*Math.sqrt(st.er)/C, kc=2*Math.PI*md.fc*Math.sqrt(st.er)/C;
+      const b=Math.sqrt(Math.max(0,k*k-kc*kc));
+      if(first){g.moveTo(X(f),Y(b));first=false;} else g.lineTo(X(f),Y(b));
+    }
+    g.stroke();
+    if(md.fc<fmax*0.92){
+      g.globalAlpha=sel?1:.6; g.fillStyle=sel?br:ink2;
+      g.font=(sel?"500 ":"")+"10.5px "+col("--mono");
+      g.textAlign="left"; g.fillText(label(md),X(md.fc)+3,Y(0)-4);
+    }
+    g.globalAlpha=1;
+  });
+
+  // operating point
+  const p=props(st.mode);
+  g.strokeStyle=br; g.lineWidth=1; g.setLineDash([3,3]); g.globalAlpha=.7;
+  g.beginPath(); g.moveTo(X(st.f),T); g.lineTo(X(st.f),T+ph); g.stroke();
+  g.setLineDash([]); g.globalAlpha=1;
+  if(p.prop){
+    g.fillStyle=br; g.beginPath(); g.arc(X(st.f),Y(p.beta),4.5,0,7); g.fill();
+  }
+
+  g.strokeStyle=col("--rule"); g.lineWidth=1;
+  g.beginPath(); g.moveTo(L,T+ph+.5); g.lineTo(L+pw,T+ph+.5); g.stroke();
+  g.beginPath(); g.moveTo(L+.5,T); g.lineTo(L+.5,T+ph); g.stroke();
+  g.fillStyle=ink2; g.font="11px "+col("--mono"); g.textAlign="center";
+  g.fillText((fmax/1e9).toFixed(0)+" GHz",L+pw-20,T+ph+16);
+  g.textAlign="left"; g.fillText("β (rad/m)",L+2,T+8);
+  g.fillText(bmax.toFixed(0),L+2,T+ph-3);
+}
+
+/* ---------------- readouts ---------------- */
+function drawRO(){
+  const md=st.mode, p=props(md), aL=lossTE10();
+  const rows=[
+    ["Status", p.prop
+      ?'<span class="status go">propagating</span>'
+      :'<span class="status no">evanescent</span>',""],
+    ["Cutoff "+label(md), fmtF(p.fc), "GHz"],
+    ["TE₁₀ cutoff", fmtF(fcOf("TE",1,0,st.a,st.b,st.er)), "GHz"],
+    ["Guide wavelength", p.prop?(p.lamg*1000).toFixed(2):"—", "mm"],
+    ["Free-space λ", (p.lam*1000).toFixed(2), "mm"],
+    ["β", p.prop?p.beta.toFixed(1):"0", "rad/m"],
+    ["Decay α", p.prop?"0":p.alpha.toFixed(1), "Np/m"],
+    ["Wave impedance", p.prop?p.Z.toFixed(1):"—", "Ω"],
+    ["Phase velocity", p.prop?(p.vp/C).toFixed(3):"—", "c"],
+    ["Group velocity", p.prop?(p.vg/C).toFixed(3):"—", "c"],
+    ["TE₁₀ wall loss", isNaN(aL)?"—":aL.toFixed(3), "dB/m"]
+  ];
+  $("ro").innerHTML=rows.map(r=>
+    '<div class="ro"><dt>'+r[0]+'</dt><dd>'+r[1]+(r[2]?' <small>'+r[2]+'</small>':'')+'</dd></div>'
+  ).join("");
+}
+
+/* ---------------- controls ---------------- */
+function fSliderToF(v){
+  const fc=fcOf("TE",1,0,st.a,st.b,st.er);
+  return fc*(0.35+ (3.05)*v/1000);
+}
+function fToSlider(f){
+  const fc=fcOf("TE",1,0,st.a,st.b,st.er);
+  return Math.max(0,Math.min(1000, Math.round((f/fc-0.35)/3.05*1000)));
+}
+function buildModes(){
+  const list=modeList().slice(0,10);
+  $("modes").innerHTML=list.map(md=>{
+    const sel=md.t===st.mode.t&&md.m===st.mode.m&&md.n===st.mode.n;
+    const off=md.fc>st.f?" off":"";
+    return '<button class="mbtn'+off+'" data-t="'+md.t+'" data-m="'+md.m+'" data-n="'+md.n+
+      '" aria-pressed="'+sel+'">'+label(md)+'<span>'+fmtF(md.fc)+' GHz</span></button>';
+  }).join("");
+  $("modes").querySelectorAll(".mbtn").forEach(b=>b.onclick=()=>{
+    st.mode={t:b.dataset.t,m:+b.dataset.m,n:+b.dataset.n}; render();
+  });
+}
+function buildPresets(){
+  $("presets").innerHTML=GUIDES.map(g=>
+    '<button class="chip" data-a="'+g.a+'" data-b="'+g.b+'">'+g.n+'</button>').join("");
+  $("presets").querySelectorAll(".chip").forEach(b=>b.onclick=()=>{
+    st.a=+b.dataset.a/1000; st.b=+b.dataset.b/1000;
+    $("aS").value=b.dataset.a; $("bS").value=b.dataset.b;
+    const fc=fcOf("TE",1,0,st.a,st.b,st.er);
+    st.f=fc*1.52; $("fS").value=fToSlider(st.f);
+    st.mode={t:"TE",m:1,n:0};
+    render();
+  });
+}
+function syncPresets(){
+  $("presets").querySelectorAll(".chip").forEach(b=>{
+    const on=Math.abs(+b.dataset.a-st.a*1000)<0.02 && Math.abs(+b.dataset.b-st.b*1000)<0.02;
+    b.setAttribute("aria-pressed",on);
+  });
+}
+function render(){
+  $("aV").textContent=(st.a*1000).toFixed(2)+" mm";
+  $("bV").textContent=(st.b*1000).toFixed(2)+" mm";
+  $("eV").textContent=st.er.toFixed(2);
+  $("fV").textContent=fmtF(st.f)+" GHz";
+  $("arrE").setAttribute("aria-pressed",st.arrows==="E");
+  $("arrH").setAttribute("aria-pressed",st.arrows==="H");
+  syncPresets(); buildModes(); drawSpec(); drawField(); drawDisp(); drawRO();
+}
+
+$("aS").oninput=e=>{ st.a=+e.target.value/1000; if(st.b>st.a){st.b=st.a;$("bS").value=(st.a*1000).toFixed(2);} st.f=fSliderToF(+$("fS").value); render(); };
+$("bS").oninput=e=>{ st.b=Math.min(+e.target.value/1000,st.a); render(); };
+$("eS").oninput=e=>{ st.er=+e.target.value; st.f=fSliderToF(+$("fS").value); render(); };
+$("fS").oninput=e=>{ st.f=fSliderToF(+e.target.value); render(); };
+$("arrE").onclick=()=>{st.arrows="E";render();};
+$("arrH").onclick=()=>{st.arrows="H";render();};
+
+buildPresets();
+$("fS").value=fToSlider(st.f);
+render();
+let rt; addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(render,120);});
+if(window.matchMedia) matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change",render);
+})();
+</script>
+</body>
+</html>
