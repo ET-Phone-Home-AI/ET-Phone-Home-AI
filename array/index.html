@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wire Antenna &amp; Array Pattern Explorer</title>
+<meta name="description" content="Interactive dipole/array pattern explorer — element pattern, array factor, and pattern multiplication, from closed-form theory.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#E9EEF1; --panel:#F7F9FA; --ink:#14232C; --ink2:#4C6673; --rule:#C1CED6;
+  --brass:#A3701A; --teal:#136E7B; --alert:#95304A; --grid:#D4DEE4;
+  --serif:"IBM Plex Serif",Georgia,"Times New Roman",serif;
+  --sans:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
+  --mono:"IBM Plex Mono","SFMono-Regular",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0D171D; --panel:#152228; --ink:#DBE6EA; --ink2:#8DA5B0; --rule:#2A3A43;
+    --brass:#D8A14C; --teal:#4FBDCA; --alert:#D2607C; --grid:#223138;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0D171D; --panel:#152228; --ink:#DBE6EA; --ink2:#8DA5B0; --rule:#2A3A43;
+  --brass:#D8A14C; --teal:#4FBDCA; --alert:#D2607C; --grid:#223138;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 56px}
+header.top{border-bottom:1px solid var(--rule);padding-bottom:18px;margin-bottom:22px}
+h1{font-family:var(--serif);font-weight:600;font-size:clamp(24px,4vw,34px);margin:0 0 6px;letter-spacing:-.01em}
+.lede{font-family:var(--serif);color:var(--ink2);max-width:64ch;margin:0;font-size:16px;line-height:1.55}
+.bench{display:grid;grid-template-columns:272px minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:920px){.bench{grid-template-columns:1fr}}
+.rail{background:var(--panel);border:1px solid var(--rule);border-radius:3px;padding:16px}
+.rail h2{font-family:var(--serif);font-size:15px;font-weight:600;margin:0 0 10px}
+.rail h2+.hint{font-size:12.5px;color:var(--ink2);margin:-6px 0 10px}
+.ctl{margin-bottom:15px}
+.ctl label{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13px;color:var(--ink2);margin-bottom:5px}
+.ctl label b{font-family:var(--mono);font-weight:500;color:var(--ink);font-size:13px}
+input[type=range]{width:100%;accent-color:var(--teal);height:22px}
+input[type=range]:focus-visible{outline:2px solid var(--teal);outline-offset:3px}
+input[type=range]:disabled{opacity:.4}
+.row{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px}
+.chip{font-family:var(--mono);font-size:11.5px;padding:4px 8px;border:1px solid var(--rule);background:transparent;color:var(--ink2);border-radius:2px;cursor:pointer}
+.chip:hover{border-color:var(--teal);color:var(--ink)}
+.chip[aria-pressed=true]{background:var(--teal);border-color:var(--teal);color:var(--panel)}
+.chip.warm[aria-pressed=true]{background:var(--brass);border-color:var(--brass)}
+.chip:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.divider{border:0;border-top:1px solid var(--rule);margin:18px 0 14px}
+figure{margin:0 0 18px;background:var(--panel);border:1px solid var(--rule);border-radius:3px;padding:12px 14px 10px}
+figcaption{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:12.5px;color:var(--ink2);margin-bottom:8px}
+figcaption strong{font-family:var(--serif);font-size:14px;font-weight:600;color:var(--ink)}
+canvas{display:block;width:100%}
+#c3D{cursor:grab;touch-action:none}
+#c3D:active{cursor:grabbing}
+.duo{display:grid;grid-template-columns:1.05fr 1fr;gap:18px}
+@media (max-width:820px){.duo{grid-template-columns:1fr}}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--ink2);margin-top:6px}
+.legend button{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;display:inline-flex;align-items:center}
+.legend button[aria-pressed=false]{opacity:.4;text-decoration:line-through}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px}
+.readouts{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:3px;overflow:hidden;margin-bottom:14px}
+.ro{background:var(--panel);padding:9px 11px}
+.ro dt{font-size:11.5px;color:var(--ink2);margin:0 0 2px}
+.ro dd{margin:0;font-family:var(--mono);font-size:16px;font-weight:500}
+.ro dd small{font-family:var(--sans);font-size:11px;color:var(--ink2);font-weight:400}
+.warn{border-left:3px solid var(--alert);background:var(--panel);padding:9px 12px;font-size:13.5px;margin-bottom:22px;display:none}
+.warn.on{display:block}
+.warn b{color:var(--alert)}
+.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(248px,1fr));gap:16px}
+.note{border-top:2px solid var(--brass);padding-top:10px}
+.note:nth-child(2){border-top-color:var(--teal)}
+.note:nth-child(3){border-top-color:var(--ink2)}
+.note h3{font-family:var(--serif);font-size:15px;margin:0 0 5px;font-weight:600}
+.note p{margin:0;font-family:var(--serif);font-size:14px;line-height:1.55;color:var(--ink2)}
+footer.site{margin-top:28px;padding-top:16px;border-top:1px solid var(--rule);color:var(--ink2);font-size:13px;font-family:var(--serif)}
+footer.site a{color:var(--ink2)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>Wire Antenna &amp; Array Pattern Explorer</h1>
+  <p class="lede">One element, then many. Change the wire length and the array geometry and watch the element pattern and the array factor multiply into the pattern you actually measure.</p>
+</header>
+
+<div class="bench">
+  <aside class="rail">
+    <h2>Element</h2>
+    <div class="row" id="elTypes">
+      <button class="chip warm" data-el="dipole" aria-pressed="true">dipole</button>
+      <button class="chip warm" data-el="hertz" aria-pressed="false">Hertzian</button>
+      <button class="chip warm" data-el="iso" aria-pressed="false">isotropic</button>
+    </div>
+    <div class="ctl">
+      <label for="lS">Length <i>L</i> <b id="lV">0.50 &lambda;</b></label>
+      <input type="range" id="lS" min="0.05" max="2.5" step="0.01" value="0.5">
+    </div>
+    <div class="row">
+      <button class="chip" data-len="0.5">&frac12;&lambda;</button>
+      <button class="chip" data-len="1">&lambda;</button>
+      <button class="chip" data-len="1.25">1.25&lambda;</button>
+      <button class="chip" data-len="1.5">1.5&lambda;</button>
+    </div>
+
+    <hr class="divider">
+
+    <h2>Array</h2>
+    <p class="hint">Elements stacked along the same axis as the wire.</p>
+    <div class="ctl">
+      <label for="nS">Elements <i>N</i> <b id="nV">8</b></label>
+      <input type="range" id="nS" min="1" max="24" step="1" value="8">
+    </div>
+    <div class="ctl">
+      <label for="dS">Spacing <i>d</i> <b id="dV">0.50 &lambda;</b></label>
+      <input type="range" id="dS" min="0.05" max="2" step="0.01" value="0.5">
+    </div>
+    <div class="ctl">
+      <label for="sS">Scan angle &theta;<sub>0</sub> <b id="sV">90&deg;</b></label>
+      <input type="range" id="sS" min="0" max="180" step="1" value="90">
+    </div>
+    <div class="row">
+      <button class="chip" data-scan="90">broadside</button>
+      <button class="chip" data-scan="0">endfire</button>
+      <button class="chip" data-scan="60">60&deg;</button>
+    </div>
+    <div class="row" id="tapers">
+      <button class="chip" data-tap="uniform" aria-pressed="true">uniform</button>
+      <button class="chip" data-tap="triangular" aria-pressed="false">triangular</button>
+      <button class="chip" data-tap="binomial" aria-pressed="false">binomial</button>
+    </div>
+
+    <hr class="divider">
+    <h2>Scale</h2>
+    <div class="row" id="floors">
+      <button class="chip" data-fl="-20" aria-pressed="false">&minus;20 dB</button>
+      <button class="chip" data-fl="-30" aria-pressed="true">&minus;30 dB</button>
+      <button class="chip" data-fl="-40" aria-pressed="false">&minus;40 dB</button>
+    </div>
+  </aside>
+
+  <div class="stage">
+    <figure>
+      <figcaption><strong>Array layout</strong><span id="layoutTag"></span></figcaption>
+      <canvas id="cArr" height="76"></canvas>
+    </figure>
+
+    <figure>
+      <figcaption>
+        <strong>3D radiation pattern</strong>
+        <span class="row" style="margin:0;gap:6px">
+          <button class="chip" id="autoRot" aria-pressed="true">auto-rotate</button>
+          <button class="chip" id="resetView">reset view</button>
+        </span>
+      </figcaption>
+      <canvas id="c3D" height="380"></canvas>
+      <div class="legend"><span id="tag3d"></span><span>drag to orbit &middot; color + height both track pattern strength &middot; dots mark the array elements on the boresight axis</span></div>
+    </figure>
+
+    <div class="duo">
+      <figure>
+        <figcaption><strong>Elevation cut</strong><span id="polarTag"></span></figcaption>
+        <canvas id="cPolar" height="330"></canvas>
+        <div class="legend" id="legend">
+          <button data-k="el" aria-pressed="true"><i style="background:var(--ink2)"></i>element</button>
+          <button data-k="af" aria-pressed="true"><i style="background:var(--teal)"></i>array factor</button>
+          <button data-k="tot" aria-pressed="true"><i style="background:var(--brass)"></i>total</button>
+        </div>
+      </figure>
+
+      <figure>
+        <figcaption><strong>Pattern in dB</strong><span>&theta; = 0&deg; is the array axis</span></figcaption>
+        <canvas id="cRect" height="330"></canvas>
+        <div class="legend"><span>Sidelobes read straight off this plot; the polar plot shows where they point.</span></div>
+      </figure>
+    </div>
+  </div>
+</div>
+
+<dl class="readouts" id="ro"></dl>
+<div class="warn" id="warn"></div>
+
+<div class="notes">
+  <div class="note">
+    <h3>Pattern multiplication, seen live</h3>
+    <p>Turn the element down to isotropic and the total collapses onto the array factor. Turn it back to a dipole and the null along the axis carves the endfire lobe away. The total is always the product, point by point.</p>
+  </div>
+  <div class="note">
+    <h3>Where grating lobes come from</h3>
+    <p>Push <i>d</i> past half a wavelength while scanning off broadside and a second full-strength lobe walks in from the horizon. The condition is <i>d</i>/&lambda; &lt; 1/(1+|cos&nbsp;&theta;<sub>0</sub>|) — the tool flags it as it happens.</p>
+  </div>
+  <div class="note">
+    <h3>The taper trade</h3>
+    <p>Binomial weighting erases the sidelobes entirely and pays for it in beamwidth and directivity. Uniform gives the narrowest beam and &minus;13.2 dB sidelobes. Everything useful lives between the two.</p>
+  </div>
+  <div class="note">
+    <h3>The 2D cut is a slice of a 3D shape</h3>
+    <p>Because the array and its dipoles share one axis, the pattern never depends on &phi; — the whole lobe is just this elevation cut spun around the array axis. Broadside sweeps out a doughnut around the array; endfire collapses that doughnut into a single cone hugging the axis. Scan between them in the 3D view and watch it happen.</p>
+  </div>
+</div>
+
+<footer class="site">Prof. E. Topsakal &middot; VCU ECE &mdash; <a href="../patch-antenna/">Patch Antenna Bench</a> &middot; <a href="../waveguide/">Rectangular Waveguide Explorer</a></footer>
+
+</div>
+
+<script>
+(function(){
+"use strict";
+const $=id=>document.getElementById(id);
+const col=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const DEG=Math.PI/180;
+
+const st={el:"dipole",L:0.5,N:8,d:0.5,scan:90,taper:"uniform",floor:-30,
+          show:{el:true,af:true,tot:true}};
+
+/* ---------- pattern maths ---------- */
+function elemF(th){
+  if(st.el==="iso") return 1;
+  if(st.el==="hertz") return Math.abs(Math.sin(th));
+  const s=Math.sin(th);
+  if(Math.abs(s)<1e-7) return 0;
+  const kl=Math.PI*st.L; // kL/2 = pi*L/lambda
+  return Math.abs((Math.cos(kl*Math.cos(th))-Math.cos(kl))/s);
+}
+function weights(){
+  const N=st.N,w=[];
+  if(st.taper==="uniform"){for(let i=0;i<N;i++)w.push(1);}
+  else if(st.taper==="triangular"){
+    for(let i=0;i<N;i++){const c=(N-1)/2;w.push(1-0.85*Math.abs(i-c)/(c||1));}
+  } else {
+    let c=1; for(let i=0;i<N;i++){ w.push(c); c=c*(N-1-i)/(i+1); }
+    const mx=Math.max(...w); for(let i=0;i<N;i++) w[i]/=mx;
+  }
+  return w;
+}
+let W=weights();
+function afF(th){
+  const k=2*Math.PI, psi=k*st.d*Math.cos(th)-k*st.d*Math.cos(st.scan*DEG);
+  let re=0,im=0;
+  for(let i=0;i<st.N;i++){ re+=W[i]*Math.cos(i*psi); im+=W[i]*Math.sin(i*psi); }
+  return Math.hypot(re,im);
+}
+const totF=th=>elemF(th)*afF(th);
+
+/* sampled curves */
+const NS=1441;
+function sample(fn){
+  const a=new Float64Array(NS);
+  for(let i=0;i<NS;i++) a[i]=fn(Math.PI*i/(NS-1));
+  return a;
+}
+function norm(a){const m=Math.max(...a)||1;const o=new Float64Array(a.length);for(let i=0;i<a.length;i++)o[i]=a[i]/m;return o;}
+const dB=v=>20*Math.log10(Math.max(v,1e-9));
+
+function directivity(tot){
+  let s=0; const dth=Math.PI/(NS-1);
+  for(let i=0;i<NS;i++){
+    const th=Math.PI*i/(NS-1), w=(i===0||i===NS-1)?0.5:1;
+    s+=w*tot[i]*tot[i]*Math.sin(th)*dth;
+  }
+  const mx=Math.max(...tot);
+  return s>0? 2*mx*mx/s : NaN;
+}
+function metrics(tot){
+  const n=norm(tot);
+  let iMax=0; for(let i=0;i<NS;i++) if(n[i]>n[iMax]) iMax=i;
+  // with a grating lobe two peaks tie: report the one the array was steered to
+  const iScan=Math.round(st.scan/180*(NS-1));
+  for(let i=0;i<NS;i++)
+    if(n[i]>=n[iMax]-1e-9 && Math.abs(i-iScan)<Math.abs(iMax-iScan)) iMax=i;
+  const thMax=180*iMax/(NS-1);
+  const half=Math.pow(10,-3/20);
+  let lo=null,hi=null;
+  for(let i=iMax;i>0;i--) if(n[i]<half){lo=180*i/(NS-1);break;}
+  for(let i=iMax;i<NS-1;i++) if(n[i]<half){hi=180*i/(NS-1);break;}
+  let hp=(lo!==null&&hi!==null)?hi-lo:null;
+  if(hp===null&&lo!==null) hp=2*(thMax-lo);
+  if(hp===null&&hi!==null) hp=2*(hi-thMax);
+  // sidelobes: local maxima outside the main lobe
+  let l=iMax,r=iMax;
+  while(l>0&&n[l-1]<=n[l]) l--;
+  while(r<NS-1&&n[r+1]<=n[r]) r++;
+  let sll=null, peaks=0;
+  for(let i=1;i<NS-1;i++){
+    if(n[i]>=n[i-1]&&n[i]>=n[i+1]&&n[i]>1e-4){
+      if(i>=l&&i<=r) continue;
+      if(sll===null||n[i]>sll) sll=n[i];
+      if(n[i]>0.891) peaks++; // within 1 dB of peak => grating lobe
+    }
+  }
+  return {thMax,hp,sll:sll!==null?dB(sll):null,grating:peaks>0};
+}
+
+/* ---------- canvas ---------- */
+function fit(cv,hCss){
+  const w=cv.parentElement.clientWidth-28;
+  const dpr=window.devicePixelRatio||1;
+  cv.style.width=w+"px"; cv.style.height=hCss+"px";
+  cv.width=Math.round(w*dpr); cv.height=Math.round(hCss*dpr);
+  const g=cv.getContext("2d"); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,w,hCss);
+  return {g,w,h:hCss};
+}
+const rOf=v=>{const d=dB(v);return Math.max(0,(d-st.floor)/(0-st.floor));};
+
+function drawPolar(curves){
+  const {g,w,h}=fit($("cPolar"),330);
+  const cx=w/2, cy=h/2+4, R=Math.min(w/2-34,h/2-18);
+  const ink=col("--ink"),ink2=col("--ink2"),grid=col("--grid"),br=col("--brass"),te=col("--teal");
+
+  g.strokeStyle=grid; g.lineWidth=1;
+  for(let i=1;i<=4;i++){ g.beginPath(); g.arc(cx,cy,R*i/4,0,7); g.stroke(); }
+  for(let a=0;a<180;a+=30){
+    g.beginPath(); g.moveTo(cx-R*Math.sin(a*DEG),cy-R*Math.cos(a*DEG));
+    g.lineTo(cx+R*Math.sin(a*DEG),cy+R*Math.cos(a*DEG)); g.stroke();
+  }
+  g.fillStyle=ink2; g.font="10.5px "+col("--mono");
+  for(let i=1;i<=4;i++){
+    const v=(st.floor*(4-i)/4).toFixed(0);
+    g.textAlign="left"; g.fillText(v,cx+3,cy-R*i/4+11);
+  }
+  [[0,"0°"],[90,"90°"],[180,"180°"],[270,"90°"]].forEach(([a,t])=>{
+    const x=cx+(R+16)*Math.sin(a*DEG), y=cy-(R+16)*Math.cos(a*DEG);
+    g.textAlign="center"; g.textBaseline="middle"; g.fillText(t,x,y);
+  });
+  g.textBaseline="alphabetic";
+
+  const plot=(arr,color,width,fill,dash)=>{
+    const n=norm(arr);
+    g.save(); g.strokeStyle=color; g.lineWidth=width; g.setLineDash(dash||[]);
+    g.beginPath();
+    for(let i=0;i<NS;i++){
+      const th=180*i/(NS-1), r=R*rOf(n[i]);
+      const x=cx+r*Math.sin(th*DEG), y=cy-r*Math.cos(th*DEG);
+      i===0?g.moveTo(x,y):g.lineTo(x,y);
+    }
+    for(let i=NS-1;i>=0;i--){
+      const th=180*i/(NS-1), r=R*rOf(n[i]);
+      g.lineTo(cx-r*Math.sin(th*DEG), cy-r*Math.cos(th*DEG));
+    }
+    g.closePath();
+    if(fill){ g.globalAlpha=.13; g.fillStyle=color; g.fill(); g.globalAlpha=1; }
+    g.stroke(); g.restore();
+  };
+  if(st.show.el) plot(curves.el,ink2,1.2,false,[4,3]);
+  if(st.show.af) plot(curves.af,te,1.4,false,[]);
+  if(st.show.tot) plot(curves.tot,br,2.3,true,[]);
+
+  $("polarTag").textContent="θ measured from the array axis";
+}
+
+function drawRect(curves){
+  const {g,w,h}=fit($("cRect"),330);
+  const L=40,R=12,T=14,B=30,pw=w-L-R,ph=h-T-B;
+  const ink2=col("--ink2"),grid=col("--grid"),br=col("--brass"),te=col("--teal"),rule=col("--rule");
+  const X=t=>L+pw*t/180, Y=d=>T+ph*(0-Math.max(d,st.floor))/(0-st.floor);
+
+  g.strokeStyle=grid; g.lineWidth=1;
+  for(let d=0;d>=st.floor;d-=10){ const y=Y(d); g.beginPath(); g.moveTo(L,y+.5); g.lineTo(L+pw,y+.5); g.stroke();
+    g.fillStyle=ink2; g.font="10.5px "+col("--mono"); g.textAlign="right"; g.fillText(d.toFixed(0),L-5,y+3.5); }
+  for(let t=0;t<=180;t+=30){ const x=X(t); g.strokeStyle=grid; g.beginPath(); g.moveTo(x+.5,T); g.lineTo(x+.5,T+ph); g.stroke();
+    g.fillStyle=ink2; g.textAlign="center"; g.fillText(t+"°",x,T+ph+16); }
+
+  const plot=(arr,color,width,dash)=>{
+    const n=norm(arr);
+    g.save(); g.strokeStyle=color; g.lineWidth=width; g.setLineDash(dash||[]);
+    g.beginPath();
+    let pen=false;
+    for(let i=0;i<NS;i++){
+      const d=dB(n[i]);
+      if(d<st.floor){pen=false;continue;}
+      const x=X(180*i/(NS-1)), y=Y(d);
+      pen?g.lineTo(x,y):(g.moveTo(x,y),pen=true);
+    }
+    g.stroke(); g.restore();
+  };
+  if(st.show.el) plot(curves.el,ink2,1.2,[4,3]);
+  if(st.show.af) plot(curves.af,te,1.4,[]);
+  if(st.show.tot) plot(curves.tot,br,2.2,[]);
+
+  g.strokeStyle=rule; g.lineWidth=1;
+  g.beginPath(); g.moveTo(L,T+ph+.5); g.lineTo(L+pw,T+ph+.5); g.stroke();
+  g.beginPath(); g.moveTo(L+.5,T); g.lineTo(L+.5,T+ph); g.stroke();
+}
+
+function drawArray(){
+  const {g,w,h}=fit($("cArr"),76);
+  const ink=col("--ink"),ink2=col("--ink2"),br=col("--brass"),te=col("--teal");
+  const N=st.N, span=(N-1)*st.d;
+  const pad=30, pw=w-2*pad;
+  const scale=span>0?pw/Math.max(span,0.5):0;
+  const y=h-26;
+  // axis
+  g.strokeStyle=ink2; g.lineWidth=1; g.setLineDash([3,3]);
+  g.beginPath(); g.moveTo(pad-14,y+.5); g.lineTo(w-pad+14,y+.5); g.stroke(); g.setLineDash([]);
+  const x0=pad+(pw-span*scale)/2;
+  for(let i=0;i<N;i++){
+    const x=x0+i*st.d*scale, a=W[i];
+    g.strokeStyle=br; g.lineWidth=2.4; g.globalAlpha=.35+.65*a;
+    const hgt=10+20*a;
+    g.beginPath(); g.moveTo(x,y-hgt/2); g.lineTo(x,y+hgt/2); g.stroke();
+    g.globalAlpha=1;
+  }
+  g.fillStyle=ink2; g.font="11px "+col("--mono"); g.textAlign="center";
+  g.fillText("aperture "+(span).toFixed(2)+"λ", w/2, h-6);
+  $("layoutTag").innerHTML=st.N+" elements &middot; "+st.taper+" weighting";
+}
+
+/* ---------- 3D pattern (surface of revolution — axisymmetric, so only theta matters) ---------- */
+const TH3D=40, PH3D=56;
+const cam3d={az:0.7, el:0.35, autoRot:true, dragging:false, lastX:0, lastY:0};
+let mesh3d=null, c3dCtx=null;
+
+function build3D(curveTot){
+  const n=norm(curveTot);
+  const rows=[];
+  for(let i=0;i<=TH3D;i++){
+    const theta=Math.PI*i/TH3D;
+    const idx=Math.min(NS-1,Math.round(theta/Math.PI*(NS-1)));
+    const r=rOf(n[idx]);
+    const sT=Math.sin(theta), cT=Math.cos(theta);
+    const row=[];
+    for(let j=0;j<PH3D;j++){
+      const phi=2*Math.PI*j/PH3D;
+      row.push({x:r*sT*Math.cos(phi), y:r*cT, z:r*sT*Math.sin(phi), v:n[idx]});
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+function xform3d(p,cosA,sinA,cosE,sinE){
+  const x=p.x*cosA+p.z*sinA, z1=-p.x*sinA+p.z*cosA;
+  const y1=p.y*cosE-z1*sinE, z2=p.y*sinE+z1*cosE;
+  return {cx:x,cy:y1,cz:z2,v:p.v};
+}
+function colorFor(v){
+  const d=dB(Math.max(v,1e-6));
+  const t=Math.max(0,Math.min(1,(d-st.floor)/(0-st.floor)));
+  const c1=[19,110,123], c2=[163,112,26]; // teal -> brass
+  return [c1[0]+(c2[0]-c1[0])*t, c1[1]+(c2[1]-c1[1])*t, c1[2]+(c2[2]-c1[2])*t];
+}
+function draw3D(){
+  if(!mesh3d||!c3dCtx) return;
+  const {g,w,h}=c3dCtx;
+  g.clearRect(0,0,w,h);
+  const cx=w/2, cy=h/2+6, R=Math.min(w,h*1.15)/2-34;
+  const cosA=Math.cos(cam3d.az), sinA=Math.sin(cam3d.az), cosE=Math.cos(cam3d.el), sinE=Math.sin(cam3d.el);
+  const camDist=3.1;
+  const proj=p=>{ const f=camDist/(camDist-p.cz); return {sx:cx+p.cx*R*f, sy:cy-p.cy*R*f}; };
+  const xf=p=>xform3d(p,cosA,sinA,cosE,sinE);
+
+  // faint reference sphere: equator + one meridian
+  g.strokeStyle=col("--grid"); g.lineWidth=1; g.globalAlpha=.6;
+  [[Math.PI/2,64],[null,64]].forEach(([thetaConst])=>{
+    g.beginPath();
+    for(let k=0;k<=64;k++){
+      let p3;
+      if(thetaConst!==null){ const phi=2*Math.PI*k/64; p3=xf({x:Math.sin(thetaConst)*Math.cos(phi),y:Math.cos(thetaConst),z:Math.sin(thetaConst)*Math.sin(phi)}); }
+      else { const th=Math.PI*k/64; p3=xf({x:Math.sin(th),y:Math.cos(th),z:0}); }
+      const pr=proj(p3); k===0?g.moveTo(pr.sx,pr.sy):g.lineTo(pr.sx,pr.sy);
+    }
+    g.stroke();
+  });
+  g.globalAlpha=1;
+
+  const rows=mesh3d.map(row=>row.map(p=>xf(p)));
+  const quads=[];
+  for(let i=0;i<TH3D;i++)for(let j=0;j<PH3D;j++){
+    const j2=(j+1)%PH3D;
+    const a=rows[i][j],b=rows[i][j2],c=rows[i+1][j2],d=rows[i+1][j];
+    quads.push({a,b,c,d,depth:(a.cz+b.cz+c.cz+d.cz)/4,v:(a.v+b.v+c.v+d.v)/4});
+  }
+  quads.sort((p,q)=>p.depth-q.depth);
+
+  const lx=-0.45,ly=0.6,lz=0.66,ll=Math.hypot(lx,ly,lz);
+  const light=[lx/ll,ly/ll,lz/ll];
+  quads.forEach(q=>{
+    const ux=q.b.cx-q.a.cx, uy=q.b.cy-q.a.cy, uz=q.b.cz-q.a.cz;
+    const vx=q.d.cx-q.a.cx, vy=q.d.cy-q.a.cy, vz=q.d.cz-q.a.cz;
+    let nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
+    const nl=Math.hypot(nx,ny,nz)||1;
+    const diff=Math.abs((nx/nl)*light[0]+(ny/nl)*light[1]+(nz/nl)*light[2]);
+    const shade=0.32+0.68*diff;
+    const [r,gg,bb]=colorFor(q.v);
+    g.fillStyle="rgb("+Math.round(r*shade)+","+Math.round(gg*shade)+","+Math.round(bb*shade)+")";
+    const pa=proj(q.a),pb=proj(q.b),pc=proj(q.c),pd=proj(q.d);
+    g.beginPath(); g.moveTo(pa.sx,pa.sy); g.lineTo(pb.sx,pb.sy); g.lineTo(pc.sx,pc.sy); g.lineTo(pd.sx,pd.sy);
+    g.closePath(); g.fill();
+  });
+
+  // boresight axis + array element markers
+  const pt1=proj(xf({x:0,y:1.12,z:0})), pt2=proj(xf({x:0,y:-1.12,z:0}));
+  g.strokeStyle=col("--ink2"); g.lineWidth=1; g.setLineDash([3,3]);
+  g.beginPath(); g.moveTo(pt1.sx,pt1.sy); g.lineTo(pt2.sx,pt2.sy); g.stroke(); g.setLineDash([]);
+  g.fillStyle=col("--brass");
+  const span=(st.N-1)*st.d;
+  for(let i=0;i<st.N;i++){
+    const yy=span>0?(i*st.d-span/2)/Math.max(span/2,0.5)*0.9:0;
+    const p3=proj(xf({x:0,y:yy,z:0}));
+    g.beginPath(); g.arc(p3.sx,p3.sy,2.6,0,7); g.fill();
+  }
+  g.fillStyle=col("--ink2"); g.font="10.5px "+col("--mono"); g.textAlign="center";
+  g.fillText("θ = 0° (boresight)", pt1.sx, pt1.sy-8);
+}
+function loop3D(){
+  if(cam3d.autoRot&&!cam3d.dragging) cam3d.az+=0.0035;
+  draw3D();
+  requestAnimationFrame(loop3D);
+}
+
+/* ---------- readouts ---------- */
+function drawRO(curves){
+  const m=metrics(curves.tot);
+  const D=directivity(curves.tot);
+  const gl=st.d>1/(1+Math.abs(Math.cos(st.scan*DEG)))-1e-9;
+  const rows=[
+    ["Directivity", isFinite(D)?(10*Math.log10(D)).toFixed(2):"—","dBi"],
+    ["Beam direction", m.thMax.toFixed(1),"°"],
+    ["Half-power beamwidth", m.hp!==null?m.hp.toFixed(1):"—","°"],
+    ["Sidelobe level", m.sll!==null?m.sll.toFixed(1):"none","dB"],
+    ["Aperture", ((st.N-1)*st.d).toFixed(2),"λ"],
+    ["Progressive phase", (-360*st.d*Math.cos(st.scan*DEG)).toFixed(1),"°"]
+  ];
+  $("ro").innerHTML=rows.map(r=>'<div class="ro"><dt>'+r[0]+'</dt><dd>'+r[1]+' <small>'+r[2]+'</small></dd></div>').join("");
+
+  const wEl=$("warn");
+  if(gl&&st.N>1){
+    wEl.className="warn on";
+    wEl.innerHTML="<b>Grating lobe.</b> At d = "+st.d.toFixed(2)+"λ and θ₀ = "+st.scan+
+      "° the visible region wraps past 2π. Keep d/λ below "+
+      (1/(1+Math.abs(Math.cos(st.scan*DEG)))).toFixed(2)+" for this scan angle.";
+  } else wEl.className="warn";
+}
+
+/* ---------- render ---------- */
+function render(){
+  W=weights();
+  const curves={el:sample(elemF),af:sample(afF),tot:sample(totF)};
+  $("lV").textContent=st.L.toFixed(2)+" λ";
+  $("nV").textContent=st.N;
+  $("dV").textContent=st.d.toFixed(2)+" λ";
+  $("sV").textContent=st.scan+"°";
+  $("lS").disabled=(st.el!=="dipole");
+  mesh3d=build3D(curves.tot);
+  $("tag3d").textContent="θ₀="+st.scan+"° · N="+st.N;
+  drawArray(); drawPolar(curves); drawRect(curves); drawRO(curves);
+}
+
+/* ---------- wiring ---------- */
+function group(sel,attr,apply){
+  document.querySelectorAll(sel+" .chip").forEach(b=>{
+    b.onclick=()=>{ apply(b.dataset[attr]);
+      document.querySelectorAll(sel+" .chip").forEach(o=>o.setAttribute("aria-pressed",o===b));
+      render(); };
+  });
+}
+group("#elTypes","el",v=>{st.el=v;});
+group("#tapers","tap",v=>{st.taper=v;});
+group("#floors","fl",v=>{st.floor=+v;});
+
+document.querySelectorAll("[data-len]").forEach(b=>b.onclick=()=>{
+  st.el="dipole"; st.L=+b.dataset.len; $("lS").value=st.L;
+  document.querySelectorAll("#elTypes .chip").forEach(o=>o.setAttribute("aria-pressed",o.dataset.el==="dipole"));
+  render();
+});
+document.querySelectorAll("[data-scan]").forEach(b=>b.onclick=()=>{
+  st.scan=+b.dataset.scan; $("sS").value=st.scan; render();
+});
+$("lS").oninput=e=>{st.L=+e.target.value;render();};
+$("nS").oninput=e=>{st.N=+e.target.value;render();};
+$("dS").oninput=e=>{st.d=+e.target.value;render();};
+$("sS").oninput=e=>{st.scan=+e.target.value;render();};
+$("legend").querySelectorAll("button").forEach(b=>b.onclick=()=>{
+  const k=b.dataset.k; st.show[k]=!st.show[k];
+  b.setAttribute("aria-pressed",st.show[k]); render();
+});
+
+const cv3d=$("c3D");
+cv3d.addEventListener("pointerdown",e=>{ cam3d.dragging=true; cam3d.lastX=e.clientX; cam3d.lastY=e.clientY; cv3d.setPointerCapture(e.pointerId); });
+cv3d.addEventListener("pointermove",e=>{
+  if(!cam3d.dragging) return;
+  cam3d.az += (e.clientX-cam3d.lastX)*0.01;
+  cam3d.el = Math.max(-1.4,Math.min(1.4, cam3d.el + (e.clientY-cam3d.lastY)*0.01));
+  cam3d.lastX=e.clientX; cam3d.lastY=e.clientY;
+});
+["pointerup","pointercancel","pointerleave"].forEach(ev=>cv3d.addEventListener(ev,()=>{cam3d.dragging=false;}));
+$("autoRot").onclick=()=>{ cam3d.autoRot=!cam3d.autoRot; $("autoRot").setAttribute("aria-pressed",cam3d.autoRot); };
+$("resetView").onclick=()=>{ cam3d.az=0.7; cam3d.el=0.35; };
+
+render();
+c3dCtx=fit(cv3d,380);
+requestAnimationFrame(loop3D);
+let rt; addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(()=>{render(); c3dCtx=fit(cv3d,380);},120);});
+if(window.matchMedia) matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change",render);
+})();
+</script>
+</body>
+</html>
