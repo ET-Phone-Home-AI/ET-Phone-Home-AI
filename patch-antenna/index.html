@@ -12,7 +12,7 @@
 :root{
   --bg:#0a1319; --panel:#101c25; --panel2:#0c1720; --line:#1c2f3a; --line2:#24404f;
   --ink:#e6eef3; --ink2:#7d97a4; --ink3:#4f6673;
-  --blue:#4cc3ff; --pink:#ff5f96; --green:#35d488; --amber:#ffb454; --red:#ff6b6b;
+  --blue:#4cc3ff; --pink:#ff5f96; --green:#35d488; --amber:#ffb454; --red:#ff6b6b; --teal:#2dd4bf;
   --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
 *{box-sizing:border-box}
@@ -77,6 +77,14 @@ body{
 .field-name .k{color:var(--ink3);font-size:11px}
 .field-val{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
 .field.L .field-val{color:var(--blue)} .field.W .field-val{color:var(--pink)} .field.XF .field-val{color:var(--amber)}
+.field.ER .field-val{color:var(--green)} .field.H .field-val{color:var(--teal)}
+
+.preset-select{
+  width:100%;font-family:var(--mono);font-size:12.5px;color:var(--ink);
+  background:var(--panel2);border:1px solid var(--line2);border-radius:6px;
+  padding:8px 10px;cursor:pointer;margin-bottom:14px;
+}
+.preset-select:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 
 input[type=range]{
   -webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;
@@ -88,13 +96,19 @@ input[type=range]::-webkit-slider-thumb{
 }
 .field.W input[type=range]::-webkit-slider-thumb{border-color:var(--pink)}
 .field.XF input[type=range]::-webkit-slider-thumb{border-color:var(--amber)}
+.field.ER input[type=range]::-webkit-slider-thumb{border-color:var(--green)}
+.field.H input[type=range]::-webkit-slider-thumb{border-color:var(--teal)}
 input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--ink);border:3px solid var(--blue);cursor:pointer}
 .field.W input[type=range]::-moz-range-thumb{border-color:var(--pink)}
 .field.XF input[type=range]::-moz-range-thumb{border-color:var(--amber)}
+.field.ER input[type=range]::-moz-range-thumb{border-color:var(--green)}
+.field.H input[type=range]::-moz-range-thumb{border-color:var(--teal)}
 .range-row{position:relative}
 .range-row .fill{position:absolute;left:0;top:9px;height:4px;border-radius:2px;background:var(--blue);pointer-events:none}
 .field.W .range-row .fill{background:var(--pink)}
 .field.XF .range-row .fill{background:var(--amber)}
+.field.ER .range-row .fill{background:var(--green)}
+.field.H .range-row .fill{background:var(--teal)}
 .range-ends{display:flex;justify-content:space-between;font-size:10px;color:var(--ink3);margin-top:5px}
 .formula{margin-top:10px;font-size:11.5px;color:var(--ink3);line-height:1.7;border-top:1px dashed var(--line);padding-top:9px}
 .formula .num{color:var(--blue);font-weight:500}
@@ -165,7 +179,7 @@ footer a{color:var(--ink3)}
   <div class="hdr">
     <div class="hdr-title"><span class="dot"></span>MICROSTRIP PATCH ANTENNA — DESIGN ENVIRONMENT</div>
     <div class="hdr-sub">
-      <b>Rogers RO4003C</b><span class="sep">|</span>ε<sub>r</sub>=3.55<span class="sep">|</span>h=1.524mm<span class="sep">|</span>Probe Fed<span class="sep">|</span>2–4 GHz<span class="sep">|</span>Prof. E. Topsakal · VCU ECE
+      <b id="hdrPreset">Rogers RO4003C</b><span class="sep">|</span>ε<sub>r</sub>=<span id="hdrEr">3.55</span><span class="sep">|</span>h=<span id="hdrH">1.524</span>mm<span class="sep">|</span>Probe Fed<span class="sep">|</span>2–4 GHz<span class="sep">|</span>Prof. E. Topsakal · VCU ECE
     </div>
   </div>
 
@@ -179,6 +193,29 @@ footer a{color:var(--ink3)}
 
   <div class="grid">
     <div class="col">
+
+      <div class="card" id="cardSub">
+        <button class="card-hd" data-card="cardSub"><span class="tri">▾</span>Substrate</button>
+        <div class="card-bd">
+          <select id="selPreset" class="preset-select">
+            <option value="ro4003c">Rogers RO4003C</option>
+            <option value="fr4">FR-4</option>
+            <option value="duroid5880">RT/duroid 5880</option>
+            <option value="air">Air / foam</option>
+            <option value="custom">Custom</option>
+          </select>
+          <div class="field ER">
+            <div class="field-top"><div class="field-name">Permittivity <span class="k">(ε<sub>r</sub>)</span></div><div class="field-val"><span id="vER">–</span></div></div>
+            <div class="range-row"><div class="fill" id="fillER"></div><input type="range" id="rER" min="1.5" max="12" step="0.01"></div>
+            <div class="range-ends"><span>1.5</span><span>12</span></div>
+          </div>
+          <div class="field H">
+            <div class="field-top"><div class="field-name">Thickness <span class="k">(h)</span></div><div class="field-val"><span id="vH">–</span> mm</div></div>
+            <div class="range-row"><div class="fill" id="fillH"></div><input type="range" id="rH" min="0.25" max="3.2" step="0.001"></div>
+            <div class="range-ends"><span>0.25 mm</span><span>3.2 mm</span></div>
+          </div>
+        </div>
+      </div>
 
       <div class="card" id="cardDim">
         <button class="card-hd" data-card="cardDim"><span class="tri">▾</span>Patch Dimensions</button>
@@ -202,7 +239,7 @@ footer a{color:var(--ink3)}
           <div class="field XF">
             <div class="field-top"><div class="field-name">Feed offset <span class="k">(x<sub>f</sub>)</span></div><div class="field-val"><span id="vXF">–</span> mm</div></div>
             <div class="range-row"><div class="fill" id="fillXF"></div><input type="range" id="rXF" min="0" max="60" step="0.01"></div>
-            <div class="range-ends"><span>0 mm</span><span id="xfMax">– mm</span></div>
+            <div class="range-ends"><span>0 mm</span><span>60 mm</span></div>
           </div>
           <div class="formula" id="feedFormula"></div>
         </div>
@@ -252,9 +289,16 @@ footer a{color:var(--ink3)}
 (function(){
 "use strict";
 const C = 299792458; // m/s
-const EPS_R = 3.55;
-const H_MM = 1.524;
+let EPS_R = 3.55;
+let H_MM = 1.524;
 const Z0 = 50;
+const PRESETS = {
+  ro4003c:{name:'Rogers RO4003C', er:3.55, h:1.524},
+  fr4:{name:'FR-4', er:4.4, h:1.6},
+  duroid5880:{name:'RT/duroid 5880', er:2.2, h:1.575},
+  air:{name:'Air / foam', er:1.06, h:3.0},
+};
+let presetKey='ro4003c';
 
 // ---------- numeric helpers ----------
 function sinc(t){ return t===0?1:Math.sin(t)/t; }
@@ -350,7 +394,9 @@ function compute(){
   const {f0,ereff,dL} = resonantFreq(L,W);
   const {G1,G12} = edgeConductances(W,L,f0);
   const Redge = 1/(2*(G1+G12));
-  const ratio = XF/L;
+  const ratioRaw = XF/L;
+  const offPatch = ratioRaw>1;
+  const ratio = Math.min(Math.max(ratioRaw,0),1);
   const cos2 = Math.pow(Math.cos(Math.PI*ratio),2);
   const Rin = Redge*cos2;
 
@@ -381,7 +427,7 @@ function compute(){
     bwMHz = (hi-lo)/1e6;
   }
 
-  return {f0,ereff,dL,Redge,ratio,cos2,Rin,Q,pts,minS11,minF,bwMHz};
+  return {f0,ereff,dL,Redge,ratio,ratioRaw,offPatch,cos2,Rin,Q,pts,minS11,minF,bwMHz};
 }
 
 // ---------- diagrams ----------
@@ -391,7 +437,8 @@ function drawTop(L,W,XF){
   const pw=L*scale, ph=W*scale;
   const vw=pw+pad*2+20, vh=ph+pad*2+40;
   const px=pad+10, py=pad+20;
-  const feedX = px + (XF/L)*pw;
+  const feedFrac = Math.min(Math.max(XF/L,0),1.15);
+  const feedX = px + feedFrac*pw;
   const feedY = py + ph/2;
   return `<svg viewBox="0 0 ${vw} ${vh}" xmlns="http://www.w3.org/2000/svg">
     <rect x="4" y="4" width="${vw-8}" height="${vh-8}" fill="#0c1720" stroke="#24404f" stroke-width="1.5"/>
@@ -430,7 +477,8 @@ function drawCross(L,W,XF,h){
   const gx=30, gw=280, gy=150, gh=10;
   const subH=46, subY=gy-subH;
   const patchY=subY-8, patchH=8;
-  const feedX = gx + (XF/L)*gw;
+  const feedFrac = Math.min(Math.max(XF/L,0),1.15);
+  const feedX = gx + feedFrac*gw;
   return `<svg viewBox="0 0 ${vw} ${vh}" xmlns="http://www.w3.org/2000/svg">
     <rect x="${gx}" y="${gy}" width="${gw}" height="${gh}" fill="#9aa7ad"/>
     <text x="${gx}" y="${gy+gh+14}" font-size="9.5" fill="#7d97a4">GND (copper)</text>
@@ -490,15 +538,25 @@ function drawChart(pts,minF,minS11,f0){
 
 // ---------- render ----------
 function render(){
+  document.getElementById('vER').textContent=EPS_R.toFixed(2);
+  document.getElementById('vH').textContent=fmt(H_MM,3);
+  document.getElementById('fillER').style.width = ((EPS_R-1.5)/(12-1.5)*100)+'%';
+  document.getElementById('fillH').style.width = ((H_MM-0.25)/(3.2-0.25)*100)+'%';
+  document.getElementById('rER').value=EPS_R;
+  document.getElementById('rH').value=H_MM;
+  document.getElementById('selPreset').value=presetKey;
+  document.getElementById('hdrPreset').textContent = PRESETS[presetKey] ? PRESETS[presetKey].name : 'Custom substrate';
+  document.getElementById('hdrEr').textContent = EPS_R.toFixed(2);
+  document.getElementById('hdrH').textContent = fmt(H_MM,3);
+
   document.getElementById('vL').textContent=fmt(L,2);
   document.getElementById('vW').textContent=fmt(W,2);
   document.getElementById('vXF').textContent=fmt(XF,2);
   document.getElementById('fillL').style.width = ((L-15)/(60-15)*100)+'%';
   document.getElementById('fillW').style.width = ((W-15)/(80-15)*100)+'%';
-  document.getElementById('fillXF').style.width = (XF/L*100)+'%';
-  document.getElementById('xfMax').textContent = fmt(L,2)+' mm';
+  document.getElementById('fillXF').style.width = (XF/60*100)+'%';
   document.getElementById('rL').value=L; document.getElementById('rW').value=W;
-  document.getElementById('rXF').max=L; document.getElementById('rXF').value=Math.min(XF,L);
+  document.getElementById('rXF').value=XF;
 
   const r = compute();
 
@@ -517,8 +575,9 @@ function render(){
   else { pill.textContent='NOT MATCHED'; pill.className='pill mismatch'; }
 
   document.getElementById('feedFormula').innerHTML =
-    `x<tspan></tspan>f/L = <span class="num">${r.ratio.toFixed(3)}</span>&nbsp;&nbsp;|&nbsp;&nbsp;cos²(πx<sub>f</sub>/L) = <span class="num">${r.cos2.toFixed(3)}</span><br>`+
-    `R<sub>edge</sub> = <span class="num">${Math.round(r.Redge)} Ω</span> (cavity model, G₁+G₁₂)&nbsp;&nbsp;|&nbsp;&nbsp;Z<sub>in</sub> ∝ cos²(πx<sub>f</sub>/L)·R<sub>edge</sub> → match to 50 Ω`;
+    `x<tspan></tspan>f/L = <span class="num">${r.ratioRaw.toFixed(3)}</span>&nbsp;&nbsp;|&nbsp;&nbsp;cos²(πx<sub>f</sub>/L) = <span class="num">${r.cos2.toFixed(3)}</span><br>`+
+    `R<sub>edge</sub> = <span class="num">${Math.round(r.Redge)} Ω</span> (cavity model, G₁+G₁₂)&nbsp;&nbsp;|&nbsp;&nbsp;Z<sub>in</sub> ∝ cos²(πx<sub>f</sub>/L)·R<sub>edge</sub> → match to 50 Ω`+
+    (r.offPatch?`<br><span style="color:var(--amber)">⚠ x_f is past the radiating edge (x_f &gt; L) — feed lies outside the patch; physics clamped at the edge</span>`:'');
 
   document.getElementById('diagram').innerHTML = view==='top' ? drawTop(L,W,XF) : drawCross(L,W,XF,H_MM);
   document.getElementById('chart').innerHTML = drawChart(r.pts,r.minF,r.minS11,r.f0);
@@ -531,18 +590,27 @@ function onSlide(src){
   if (src==='L') log(`L → ${fmt(L,2)}mm — f₀ recomputed: ${(r.f0/1e9).toFixed(4)} GHz`);
   if (src==='W') log(`W → ${fmt(W,2)}mm — ε_r,eff: ${r.ereff.toFixed(3)}, R_edge: ${Math.round(r.Redge)}Ω`);
   if (src==='XF') log(`x_f → ${fmt(XF,2)}mm — Z_in: ${Math.round(r.Rin)}Ω, min S₁₁: ${r.minS11.toFixed(1)}dB`, r.minS11>-10);
+  if (src==='ER') log(`ε_r → ${EPS_R.toFixed(2)} (custom) — f₀ recomputed: ${(r.f0/1e9).toFixed(4)} GHz`);
+  if (src==='H') log(`h → ${fmt(H_MM,3)}mm (custom) — f₀ recomputed: ${(r.f0/1e9).toFixed(4)} GHz`);
 }
 
 // ---------- wire up ----------
-document.getElementById('rL').addEventListener('input',e=>{ L=parseFloat(e.target.value); if(XF>L) XF=L; onSlide('L'); });
+document.getElementById('rL').addEventListener('input',e=>{ L=parseFloat(e.target.value); onSlide('L'); });
 document.getElementById('rW').addEventListener('input',e=>{ W=parseFloat(e.target.value); onSlide('W'); });
 document.getElementById('rXF').addEventListener('input',e=>{ XF=parseFloat(e.target.value); onSlide('XF'); });
+document.getElementById('rER').addEventListener('input',e=>{ EPS_R=parseFloat(e.target.value); presetKey='custom'; onSlide('ER'); });
+document.getElementById('rH').addEventListener('input',e=>{ H_MM=parseFloat(e.target.value); presetKey='custom'; onSlide('H'); });
+document.getElementById('selPreset').addEventListener('change',e=>{
+  const k=e.target.value, p=PRESETS[k];
+  if (p){ presetKey=k; EPS_R=p.er; H_MM=p.h; render(); log(`Substrate → ${p.name} (εr=${p.er}, h=${p.h}mm)`); }
+  else { presetKey='custom'; render(); }
+});
 
 document.getElementById('btnReset').addEventListener('click',()=>{
   const d = designForFreq(2.4e9);
   L=d.L_mm; W=d.W_mm; XF=0.220*L;
   render();
-  log('Reset → design target 2.4 GHz (L,W recomputed for εr=3.55, h=1.524mm)');
+  log(`Reset → design target 2.4 GHz (L,W recomputed for εr=${EPS_R}, h=${H_MM}mm)`);
 });
 document.getElementById('btnDesign').addEventListener('click',()=>{
   const d = designForFreq(3.5e9);
@@ -569,7 +637,7 @@ document.getElementById('consoleHd').addEventListener('click',()=>{ document.get
 // ---------- boot ----------
 try{
   const r = render();
-  log('Design environment loaded — Rogers RO4003C, εr=3.55, h=1.524mm');
+  log(`Design environment loaded — ${PRESETS[presetKey].name}, εr=${EPS_R}, h=${H_MM}mm`);
   log(`Initial state: L=${fmt(L,2)}mm, W=${fmt(W,2)}mm, xf=${fmt(XF,2)}mm`);
   log(`f₀=${(r.f0/1e9).toFixed(4)}GHz, min S₁₁=${r.minS11.toFixed(1)}dB — feed not yet matched, try moving x_f`, r.minS11>-10);
 }catch(err){
