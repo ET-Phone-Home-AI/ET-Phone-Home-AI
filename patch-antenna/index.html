@@ -202,7 +202,7 @@ footer a{color:var(--ink3)}
           <div class="field XF">
             <div class="field-top"><div class="field-name">Feed offset <span class="k">(x<sub>f</sub>)</span></div><div class="field-val"><span id="vXF">–</span> mm</div></div>
             <div class="range-row"><div class="fill" id="fillXF"></div><input type="range" id="rXF" min="0" max="60" step="0.01"></div>
-            <div class="range-ends"><span>0 mm</span><span id="xfMax">– mm</span></div>
+            <div class="range-ends"><span>0 mm</span><span>60 mm</span></div>
           </div>
           <div class="formula" id="feedFormula"></div>
         </div>
@@ -350,7 +350,9 @@ function compute(){
   const {f0,ereff,dL} = resonantFreq(L,W);
   const {G1,G12} = edgeConductances(W,L,f0);
   const Redge = 1/(2*(G1+G12));
-  const ratio = XF/L;
+  const ratioRaw = XF/L;
+  const offPatch = ratioRaw>1;
+  const ratio = Math.min(Math.max(ratioRaw,0),1);
   const cos2 = Math.pow(Math.cos(Math.PI*ratio),2);
   const Rin = Redge*cos2;
 
@@ -381,7 +383,7 @@ function compute(){
     bwMHz = (hi-lo)/1e6;
   }
 
-  return {f0,ereff,dL,Redge,ratio,cos2,Rin,Q,pts,minS11,minF,bwMHz};
+  return {f0,ereff,dL,Redge,ratio,ratioRaw,offPatch,cos2,Rin,Q,pts,minS11,minF,bwMHz};
 }
 
 // ---------- diagrams ----------
@@ -391,7 +393,8 @@ function drawTop(L,W,XF){
   const pw=L*scale, ph=W*scale;
   const vw=pw+pad*2+20, vh=ph+pad*2+40;
   const px=pad+10, py=pad+20;
-  const feedX = px + (XF/L)*pw;
+  const feedFrac = Math.min(Math.max(XF/L,0),1.15);
+  const feedX = px + feedFrac*pw;
   const feedY = py + ph/2;
   return `<svg viewBox="0 0 ${vw} ${vh}" xmlns="http://www.w3.org/2000/svg">
     <rect x="4" y="4" width="${vw-8}" height="${vh-8}" fill="#0c1720" stroke="#24404f" stroke-width="1.5"/>
@@ -430,7 +433,8 @@ function drawCross(L,W,XF,h){
   const gx=30, gw=280, gy=150, gh=10;
   const subH=46, subY=gy-subH;
   const patchY=subY-8, patchH=8;
-  const feedX = gx + (XF/L)*gw;
+  const feedFrac = Math.min(Math.max(XF/L,0),1.15);
+  const feedX = gx + feedFrac*gw;
   return `<svg viewBox="0 0 ${vw} ${vh}" xmlns="http://www.w3.org/2000/svg">
     <rect x="${gx}" y="${gy}" width="${gw}" height="${gh}" fill="#9aa7ad"/>
     <text x="${gx}" y="${gy+gh+14}" font-size="9.5" fill="#7d97a4">GND (copper)</text>
@@ -495,10 +499,9 @@ function render(){
   document.getElementById('vXF').textContent=fmt(XF,2);
   document.getElementById('fillL').style.width = ((L-15)/(60-15)*100)+'%';
   document.getElementById('fillW').style.width = ((W-15)/(80-15)*100)+'%';
-  document.getElementById('fillXF').style.width = (XF/L*100)+'%';
-  document.getElementById('xfMax').textContent = fmt(L,2)+' mm';
+  document.getElementById('fillXF').style.width = (XF/60*100)+'%';
   document.getElementById('rL').value=L; document.getElementById('rW').value=W;
-  document.getElementById('rXF').max=L; document.getElementById('rXF').value=Math.min(XF,L);
+  document.getElementById('rXF').value=XF;
 
   const r = compute();
 
@@ -517,8 +520,9 @@ function render(){
   else { pill.textContent='NOT MATCHED'; pill.className='pill mismatch'; }
 
   document.getElementById('feedFormula').innerHTML =
-    `x<tspan></tspan>f/L = <span class="num">${r.ratio.toFixed(3)}</span>&nbsp;&nbsp;|&nbsp;&nbsp;cos²(πx<sub>f</sub>/L) = <span class="num">${r.cos2.toFixed(3)}</span><br>`+
-    `R<sub>edge</sub> = <span class="num">${Math.round(r.Redge)} Ω</span> (cavity model, G₁+G₁₂)&nbsp;&nbsp;|&nbsp;&nbsp;Z<sub>in</sub> ∝ cos²(πx<sub>f</sub>/L)·R<sub>edge</sub> → match to 50 Ω`;
+    `x<tspan></tspan>f/L = <span class="num">${r.ratioRaw.toFixed(3)}</span>&nbsp;&nbsp;|&nbsp;&nbsp;cos²(πx<sub>f</sub>/L) = <span class="num">${r.cos2.toFixed(3)}</span><br>`+
+    `R<sub>edge</sub> = <span class="num">${Math.round(r.Redge)} Ω</span> (cavity model, G₁+G₁₂)&nbsp;&nbsp;|&nbsp;&nbsp;Z<sub>in</sub> ∝ cos²(πx<sub>f</sub>/L)·R<sub>edge</sub> → match to 50 Ω`+
+    (r.offPatch?`<br><span style="color:var(--amber)">⚠ x_f is past the radiating edge (x_f &gt; L) — feed lies outside the patch; physics clamped at the edge</span>`:'');
 
   document.getElementById('diagram').innerHTML = view==='top' ? drawTop(L,W,XF) : drawCross(L,W,XF,H_MM);
   document.getElementById('chart').innerHTML = drawChart(r.pts,r.minF,r.minS11,r.f0);
@@ -534,7 +538,7 @@ function onSlide(src){
 }
 
 // ---------- wire up ----------
-document.getElementById('rL').addEventListener('input',e=>{ L=parseFloat(e.target.value); if(XF>L) XF=L; onSlide('L'); });
+document.getElementById('rL').addEventListener('input',e=>{ L=parseFloat(e.target.value); onSlide('L'); });
 document.getElementById('rW').addEventListener('input',e=>{ W=parseFloat(e.target.value); onSlide('W'); });
 document.getElementById('rXF').addEventListener('input',e=>{ XF=parseFloat(e.target.value); onSlide('XF'); });
 
