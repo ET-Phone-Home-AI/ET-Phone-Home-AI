@@ -479,28 +479,44 @@ function coupledLineTLSvg(sections){
   </svg>`;
 }
 
-function stripLayoutSVG(segments, isCoupled){
-  const n=segments.length, W=Math.max(560,100*n+120), Hh=140;
-  const x0=40, avgW=Math.min(30, (W-80)/n*0.7);
+function stripLayoutSVG(segments){
+  // A shunt stub is a T-junction POINT on the main line, not a segment with
+  // its own length -- only 'line'/'ue' (and 'coupled') segments consume
+  // horizontal run length. Stubs tap off the continuous spine at a junction.
+  const lineSegs = segments.filter(s=>s.type==='line'||s.type==='ue'||s.type==='coupled');
+  const nLines = Math.max(1, lineSegs.length);
+  const dxLine = 140;
+  const margin = 70;
+  const W = margin*2 + nLines*dxLine;
+  const maxStubLen = Math.max(20, ...segments.filter(s=>s.type==='stub').map(s=>s.L_mm*4), 0);
+  const Hh = 150 + maxStubLen;
+  const yMid = 70;
   let out=`<rect x="4" y="4" width="${W-8}" height="${Hh-8}" fill="#0c1720" stroke="#24404f" stroke-width="1.5"/>`;
-  let x=x0;
-  const dx=(W-80)/n;
+  out+=`<line x1="${margin}" y1="${yMid}" x2="${W-margin}" y2="${yMid}" stroke="#4f6673" stroke-width="1.5"/>`;
+
+  let x=margin;
+  const clampX = tx => Math.max(margin+38, Math.min(W-margin-38, tx));
+  const multiline = (tx,ty,lines,fill)=>lines.map((ln,i)=>`<tspan x="${tx}" dy="${i===0?0:11}">${ln}</tspan>`).join('') &&
+    `<text x="${tx}" y="${ty}" text-anchor="middle" font-size="9" fill="${fill}">${lines.map((ln,i)=>`<tspan x="${tx}" dy="${i===0?0:11}">${ln}</tspan>`).join('')}</text>`;
+  let stubIdx=0;
   segments.forEach(seg=>{
     const wPx = Math.max(4, Math.min(40, seg.W_mm*6));
-    const yMid = Hh/2;
     if(seg.type==='line'||seg.type==='ue'){
-      out+=`<rect x="${x}" y="${yMid-wPx/2}" width="${dx}" height="${wPx}" fill="#d9a441" stroke="#8a6420"/>`;
-      out+=`<text x="${x+dx/2}" y="${yMid-wPx/2-6}" text-anchor="middle" font-size="8.5" fill="#d9a441">${seg.label||''}</text>`;
-    } else if(seg.type==='stub'){
-      out+=`<rect x="${x}" y="${yMid-wPx/2}" width="6" height="${wPx}" fill="#d9a441"/>`;
-      out+=`<rect x="${x-wPx/2}" y="${yMid+wPx/2}" width="${wPx}" height="${Math.max(10,seg.L_mm*4)}" fill="#d9a441" stroke="#8a6420"/>`;
-      out+=`<text x="${x}" y="${yMid+wPx/2+Math.max(10,seg.L_mm*4)+12}" text-anchor="middle" font-size="8.5" fill="#d9a441">${seg.label||''}</text>`;
+      out+=`<rect x="${x}" y="${yMid-wPx/2}" width="${dxLine}" height="${wPx}" fill="#d9a441" stroke="#8a6420"/>`;
+      out+=multiline(clampX(x+dxLine/2), yMid-wPx/2-24, [`W=${seg.W_mm.toFixed(2)}mm`,`l=${seg.L_mm.toFixed(2)}mm`], '#d9a441');
+      x+=dxLine;
     } else if(seg.type==='coupled'){
-      out+=`<rect x="${x}" y="${yMid-wPx-2}" width="${dx}" height="${wPx}" fill="#4cc3ff" stroke="#1c6a91"/>`;
-      out+=`<rect x="${x}" y="${yMid+2}" width="${dx}" height="${wPx}" fill="#ff5f96" stroke="#8a2049"/>`;
-      out+=`<text x="${x+dx/2}" y="${yMid-wPx-8}" text-anchor="middle" font-size="8.5" fill="#7d97a4">${seg.label||''}</text>`;
+      out+=`<rect x="${x}" y="${yMid-wPx-2}" width="${dxLine}" height="${wPx}" fill="#4cc3ff" stroke="#1c6a91"/>`;
+      out+=`<rect x="${x}" y="${yMid+2}" width="${dxLine}" height="${wPx}" fill="#ff5f96" stroke="#8a2049"/>`;
+      out+=multiline(clampX(x+dxLine/2), yMid-wPx-26, [`W=${seg.W_mm.toFixed(2)}mm  s≈${seg.s_mm.toFixed(2)}mm`,`l=${seg.L_mm.toFixed(2)}mm`], '#7d97a4');
+      x+=dxLine;
+    } else if(seg.type==='stub'){
+      const stubLenPx = Math.max(20, seg.L_mm*4);
+      const stagger = (stubIdx++%2)*13;
+      out+=`<circle cx="${x}" cy="${yMid}" r="3" fill="#4f6673"/>`;
+      out+=`<rect x="${x-wPx/2}" y="${yMid}" width="${wPx}" height="${stubLenPx}" fill="#d9a441" stroke="#8a6420"/>`;
+      out+=multiline(clampX(x), yMid+stubLenPx+16+stagger, [`W=${seg.W_mm.toFixed(2)}mm`,`l=${seg.L_mm.toFixed(2)}mm`], '#d9a441');
     }
-    x+=dx;
   });
   return `<svg class="diagram" viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg">${out}</svg>`;
 }
