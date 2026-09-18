@@ -412,22 +412,31 @@ function drawArray(){
 }
 
 /* ---------- 3D pattern (surface of revolution — axisymmetric, so only theta matters) ---------- */
-const TH3D=40, PH3D=56;
+const TH3D=56, PH3D=56;
 const cam3d={az:0.7, el:0.35, autoRot:true, dragging:false, lastX:0, lastY:0};
 let mesh3d=null, c3dCtx=null;
 
 function build3D(curveTot){
+  // Nearest-index sampling would silently skip narrow lobes the coarse
+  // TH3D mesh doesn't land on (e.g. dense grating-lobe fringes at large
+  // N/d), showing a falsely smooth lobe next to a 2D plot that correctly
+  // shows them. Max-over-band per slice guarantees a real peak in range
+  // always shows up, even if the mesh can't resolve its exact shape.
   const n=norm(curveTot);
+  const dTheta=Math.PI/TH3D;
   const rows=[];
   for(let i=0;i<=TH3D;i++){
     const theta=Math.PI*i/TH3D;
-    const idx=Math.min(NS-1,Math.round(theta/Math.PI*(NS-1)));
-    const r=rOf(n[idx]);
+    const idxLo=Math.max(0,Math.floor((theta-dTheta/2)/Math.PI*(NS-1)));
+    const idxHi=Math.min(NS-1,Math.ceil((theta+dTheta/2)/Math.PI*(NS-1)));
+    let v=n[Math.min(NS-1,Math.round(theta/Math.PI*(NS-1)))];
+    for(let k=idxLo;k<=idxHi;k++) if(n[k]>v) v=n[k];
+    const r=rOf(v);
     const sT=Math.sin(theta), cT=Math.cos(theta);
     const row=[];
     for(let j=0;j<PH3D;j++){
       const phi=2*Math.PI*j/PH3D;
-      row.push({x:r*sT*Math.cos(phi), y:r*cT, z:r*sT*Math.sin(phi), v:n[idx]});
+      row.push({x:r*sT*Math.cos(phi), y:r*cT, z:r*sT*Math.sin(phi), v});
     }
     rows.push(row);
   }
