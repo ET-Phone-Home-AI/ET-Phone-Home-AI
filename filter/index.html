@@ -569,9 +569,18 @@ function computeAndRender(){
     });
     $("layoutSvg").innerHTML = stripLayoutSVG(segs);
     $("tagLayout").textContent = segs.length+' coupled sections';
-    $("dimTable").innerHTML = segs.map((s,i)=>`<div class="ro"><dt>Section ${i+1}</dt><dd>W=${s.W_mm.toFixed(2)}mm<br>s=${s.s_mm.toFixed(2)}mm<br>l=${s.L_mm.toFixed(2)}mm</dd></div>`).join('');
+    $("dimTable").innerHTML = segs.map((s,i)=>`<div class="ro"><dt>Section ${i+1}</dt><dd>W=${s.W_mm.toFixed(2)}mm<br>s≈${s.s_mm.toFixed(2)}mm*<br>l=${s.L_mm.toFixed(2)}mm</dd></div>`).join('')
+      + '<div class="ro" style="grid-column:1/-1;background:transparent"><dt>* approximate</dt><dd style="font-size:10.5px;font-weight:400;color:var(--ink2)">Only the gap s is a first-pass estimate — W and l are exact from verified synthesis.</dd></div>';
   } else {
-    if(st.N>3){
+    if(st.filterType==='highpass'){
+      $("tlTitle").textContent='Transmission-Line Equivalent (lowpass only)';
+      $("tlSvg").innerHTML='';
+      $("tagTL").textContent='';
+      $("tlNote").innerHTML="<b>Note:</b> Richard's transformation + Kuroda's identities are a lowpass-ladder technique — they rely on short-circuited series stubs and open-circuited shunt stubs specifically. A highpass ladder needs the opposite pairing (open series / short shunt), and re-deriving the reduction for that combination shows no equivalent closed-form Kuroda identity exists in the same simple form (verified directly: the algebra leaves a frequency-dependent term no fixed stub impedance can absorb). So this stage is only shown for lowpass here; the highpass ripple response above is still the exact, verified lumped-ladder result — only the distributed/microstrip realization is out of scope for highpass in this tool.";
+      $("layoutSvg").innerHTML='';
+      $("tagLayout").textContent='';
+      $("dimTable").innerHTML='';
+    } else if(st.N>3){
       $("tlTitle").textContent='Transmission-Line Equivalent (N≤3 only)';
       $("tlSvg").innerHTML='';
       $("tagTL").textContent='';
