@@ -82,6 +82,9 @@ canvas{display:block;width:100%;max-width:100%}
 .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--ink2);margin-top:6px}
 .legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 .toggle{display:flex;gap:5px}
+.fsub{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:var(--ink2);margin-top:4px;font-family:var(--mono)}
+.fsub input{width:84px;font-family:var(--mono);font-size:12px;padding:2px 4px;border:1px solid var(--rule);border-radius:2px;background:transparent;color:var(--ink)}
+.status.cut{color:var(--brass)}
 footer.site{margin-top:28px;padding-top:16px;border-top:1px solid var(--rule);color:var(--ink2);font-size:13px;font-family:var(--serif)}
 footer.site a{color:var(--ink2)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -102,20 +105,25 @@ footer.site a{color:var(--ink2)}
     <div class="presets" id="presets"></div>
 
     <div class="ctl">
-      <label for="aS">Broad wall <i>a</i> <b id="aV">22.86 mm</b></label>
+      <label for="aS"><span>Broad wall <i>a</i></span> <b id="aV">22.86 mm</b></label>
       <input type="range" id="aS" min="3" max="80" step="0.01" value="22.86">
     </div>
     <div class="ctl">
-      <label for="bS">Narrow wall <i>b</i> <b id="bV">10.16 mm</b></label>
+      <label for="bS"><span>Narrow wall <i>b</i></span> <b id="bV">10.16 mm</b></label>
       <input type="range" id="bS" min="1" max="40" step="0.01" value="10.16">
     </div>
     <div class="ctl">
-      <label for="eS">Fill &epsilon;<sub>r</sub> <b id="eV">1.00</b></label>
+      <label for="eS"><span>Fill &epsilon;<sub>r</sub></span> <b id="eV">1.00</b></label>
       <input type="range" id="eS" min="1" max="10" step="0.01" value="1">
     </div>
     <div class="ctl">
       <label for="fS">Frequency <b id="fV">10.00 GHz</b></label>
+      <div class="toggle" style="margin-bottom:6px">
+        <button class="chip" id="fAbs" aria-pressed="true" title="Hold the source frequency fixed while you change a, b or the fill">Absolute GHz</button>
+        <button class="chip" id="fNorm" aria-pressed="false" title="Slider tracks f/fc10, so geometry changes move the frequency with the cutoff">f / f<sub>c10</sub></button>
+      </div>
       <input type="range" id="fS" min="0" max="1000" step="1" value="500">
+      <div class="fsub"><span id="fRatio"></span><span><input type="number" id="fN" min="0.1" max="200" step="0.001" value="10" aria-label="Frequency in GHz"> GHz</span></div>
     </div>
 
     <h2 style="margin-top:20px">Mode</h2>
@@ -167,8 +175,8 @@ footer.site a{color:var(--ink2)}
 
 <div class="notes">
   <div class="note">
-    <h3>Why <i>a</i> sets everything</h3>
-    <p>The dominant TE<sub>10</sub> cutoff depends only on the broad wall: half a wavelength has to fit across <i>a</i>. Slide <i>b</i> and watch the cutoff refuse to move — <i>b</i> buys you power handling and lower loss, not bandwidth.</p>
+    <h3>What <i>a</i> and <i>b</i> each set</h3>
+    <p>The dominant TE<sub>10</sub> cutoff depends only on the broad wall: half a wavelength has to fit across <i>a</i>. Slide <i>b</i> and the TE<sub>10</sub> cutoff does not move — but <i>b</i> sets the TE<sub>01</sub> cutoff, so once <i>b</i> &gt; <i>a</i>/2 it is TE<sub>01</sub>, not TE<sub>20</sub>, that ends the single-mode band. The narrow wall also sets power handling and conductor loss.</p>
   </div>
   <div class="note">
     <h3>Below cutoff is not reflection</h3>
@@ -176,7 +184,11 @@ footer.site a{color:var(--ink2)}
   </div>
   <div class="note">
     <h3>The usable band is narrow on purpose</h3>
-    <p>Standard guides are specified from roughly 1.25 <i>f</i><sub>c</sub> to 1.9 <i>f</i><sub>c</sub>: far enough above cutoff that dispersion and loss are tame, far enough below the next mode that a discontinuity cannot excite it.</p>
+    <p>Standard guides are specified from roughly 1.25 <i>f</i><sub>c</sub> to 1.9 <i>f</i><sub>c</sub>: far enough above cutoff that dispersion and loss are tame, far enough below the next mode that any higher mode a discontinuity excites stays evanescent and cannot carry power away.</p>
+  </div>
+  <div class="note">
+    <h3>Assumptions</h3>
+    <p>Ideal, perfectly conducting walls for the modes and fields; the wall-loss readout is the TE<sub>10</sub> conductor loss for copper (&sigma; = 5.8&times;10<sup>7</sup> S/m) and applies to TE<sub>10</sub> only. The fill is a lossless, non-magnetic dielectric. Fields are normalized spatial patterns: the longitudinal colour map and the transverse arrows are scaled independently, so their relative sizes are not physical E/H amplitude ratios; the colour map and the arrows are 90&deg; apart in time, and absolute amplitude is not shown.</p>
   </div>
 </div>
 
@@ -194,8 +206,10 @@ const GUIDES=[
   {n:"WR-90", a:22.86,b:10.16},{n:"WR-62", a:15.80,b:7.90},
   {n:"WR-42", a:10.67,b:4.32},{n:"WR-28", a:7.112,b:3.556}
 ];
-const SUB=["₀","₁","₂","₃","₄"];
-const st={a:0.02286,b:0.01016,er:1,f:10e9,mode:{t:"TE",m:1,n:0},arrows:"E"};
+const SUBD="₀₁₂₃₄₅₆₇₈₉";
+const sub=k=>String(k).split("").map(d=>SUBD[+d]).join("");
+const st={a:0.02286,b:0.01016,er:1,f:10e9,mode:{t:"TE",m:1,n:0},arrows:"E",fmode:"abs"};
+const F_LO=0.1e9, F_HI=200e9; // absolute-frequency slider range (log)
 
 const $=id=>document.getElementById(id);
 const col=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -204,30 +218,48 @@ function fcOf(t,m,n,a,b,er){
   const kc=Math.hypot(m*Math.PI/a, n*Math.PI/b);
   return C*kc/(2*Math.PI*Math.sqrt(er));
 }
-function modeList(){
-  const out=[];
-  for(let m=0;m<=3;m++)for(let n=0;n<=3;n++){
+/* Every mode with fc <= F. Since fc(m,n) >= fc(m,0) and >= fc(0,n), no index
+   beyond floor(F/fc(1,0)) or floor(F/fc(0,1)) can come in below F, so the list
+   is complete up to F. F grows until it covers the operating frequency with
+   margin and the ten lowest modes (the selectable set) with room for the plots. */
+function modesBelow(F){
+  const f10=fcOf("TE",1,0,st.a,st.b,st.er), f01=fcOf("TE",0,1,st.a,st.b,st.er);
+  const M=Math.floor(F/f10+1e-9), N=Math.floor(F/f01+1e-9), out=[];
+  for(let m=0;m<=M;m++)for(let n=0;n<=N;n++){
     if(m===0&&n===0) continue;
-    out.push({t:"TE",m,n,fc:fcOf("TE",m,n,st.a,st.b,st.er)});
-    if(m>=1&&n>=1) out.push({t:"TM",m,n,fc:fcOf("TM",m,n,st.a,st.b,st.er)});
+    const fc=fcOf("TE",m,n,st.a,st.b,st.er); if(fc>F*(1+1e-12)) continue;
+    out.push({t:"TE",m,n,fc});
+    if(m>=1&&n>=1) out.push({t:"TM",m,n,fc});
   }
-  out.sort((p,q)=>p.fc-q.fc);
+  out.sort((p,q)=>p.fc-q.fc || (p.t<q.t?-1:1));
   return out;
 }
-const label=md=>md.t+SUB[md.m]+SUB[md.n];
+function modeList(){
+  let F=Math.max(1.35*st.f, 2*fcOf("TE",1,0,st.a,st.b,st.er)), out;
+  for(;;){ out=modesBelow(F); if(out.length>=10 && F>=1.35*out[9].fc) return out; F*=1.4; }
+}
+function niceStep(range,target){
+  const raw=range/(target||5), p=Math.pow(10,Math.floor(Math.log10(raw))), r=raw/p;
+  return p*(r<1.5?1:r<3.5?2:r<7.5?5:10);
+}
+const label=md=>md.t+sub(md.m)+(md.m>9||md.n>9?",":"")+sub(md.n);
+const same=(p,q)=>p.t===q.t&&p.m===q.m&&p.n===q.n;
+// TEmn and TMmn (m,n>=1) share a cutoff: label the pair once
+const pairLabel=md=>md.m>=1&&md.n>=1 ? "TE/TM"+sub(md.m)+(md.m>9||md.n>9?",":"")+sub(md.n) : label(md);
 
 function props(md){
   const fc=fcOf(md.t,md.m,md.n,st.a,st.b,st.er);
   const er=st.er, f=st.f;
   const k=2*Math.PI*f*Math.sqrt(er)/C;
   const kc=2*Math.PI*fc*Math.sqrt(er)/C;
-  const prop=f>fc;
+  const atCut=Math.abs(f-fc)<=1e-4*fc;
+  const prop=f>fc&&!atCut;
   const r=prop?Math.sqrt(1-(fc/f)**2):0;
   const beta=prop?Math.sqrt(k*k-kc*kc):0;
-  const alpha=prop?0:Math.sqrt(kc*kc-k*k);
+  const alpha=prop||atCut?0:Math.sqrt(kc*kc-k*k);
   const eta=ETA0/Math.sqrt(er);
-  return {fc,k,kc,prop,r,beta,alpha,eta,
-    lam:C/(f*Math.sqrt(er)),
+  return {fc,k,kc,prop,atCut,r,beta,alpha,eta,
+    lam0:C/f, lam:C/(f*Math.sqrt(er)),
     lamg:prop?2*Math.PI/beta:Infinity,
     Z:prop?(md.t==="TE"?eta/r:eta*r):NaN,
     vp:prop?2*Math.PI*f/beta:NaN,
@@ -249,7 +281,7 @@ function fieldAt(md,x,y){ // x,y in metres
   const cy=Math.cos(n*Math.PI*y/b), sy=Math.sin(n*Math.PI*y/b);
   let Ex,Ey,Lz;
   if(md.t==="TE"){ Ex=(n/b)*cx*sy; Ey=-(m/a)*sx*cy; Lz=cx*cy; }
-  else { Ex=(m/a)*cx*sy; Ey=(n/b)*sx*cy; Lz=sx*sy; }
+  else { Ex=-(m/a)*cx*sy; Ey=-(n/b)*sx*cy; Lz=sx*sy; }  // Et = -(jβ/kc²)∇Ez, common factor -j dropped like +j for TE
   return {Ex,Ey,Hx:-Ey,Hy:Ex,Lz};
 }
 
@@ -271,7 +303,7 @@ function drawSpec(){
   const {g,w,h}=fit($("cSpec"),150);
   const L=40,R=14,T=16,B=30, pw=w-L-R, ph=h-T-B;
   const list=modeList();
-  const fmax=Math.max(st.f*1.15, list[Math.min(7,list.length-1)].fc*1.1);
+  const fmax=Math.max(st.f*1.15, list[7].fc*1.1, fcOf(st.mode.t,st.mode.m,st.mode.n,st.a,st.b,st.er)*1.05);
   const X=f=>L+pw*Math.min(f,fmax)/fmax;
   const ink=col("--ink"),ink2=col("--ink2"),br=col("--brass"),te=col("--teal"),rule=col("--rule");
 
@@ -285,27 +317,36 @@ function drawSpec(){
   g.strokeStyle=rule; g.lineWidth=1;
   g.beginPath(); g.moveTo(L,T+ph+.5); g.lineTo(L+pw,T+ph+.5); g.stroke();
   g.fillStyle=ink2; g.font="11px "+col("--mono");
-  const step=Math.pow(10,Math.floor(Math.log10(fmax/1e9)))* (fmax/1e9>50?10:fmax/1e9>20?5:fmax/1e9>6?2:1);
-  for(let t=0;t<=fmax/1e9+1e-9;t+=step){
-    const x=X(t*1e9); if(x>L+pw+1) break;
+  const step=niceStep(fmax/1e9,5), dec=step<1?Math.ceil(-Math.log10(step)):0;
+  for(let i=0;i*step<=fmax/1e9+1e-9;i++){
+    const t=i*step, x=X(t*1e9);
     g.beginPath(); g.moveTo(x,T+ph); g.lineTo(x,T+ph+4); g.stroke();
-    g.textAlign="center"; g.fillText(t.toFixed(step<1?1:0),x,T+ph+16);
+    g.textAlign="center"; g.fillText(t.toFixed(dec),x,T+ph+16);
   }
-  g.textAlign="left"; g.fillText("GHz",L+pw-22,T+ph+27);
+  g.textAlign="right"; g.fillText("GHz",L+pw,T+ph+27);
 
   // mode ticks
-  let row=0;
-  list.slice(0,10).forEach(md=>{
-    if(md.fc>fmax) return;
-    const x=X(md.fc), sel=md.t===st.mode.t&&md.m===st.mode.m&&md.n===st.mode.n;
+  // every mode below fmax gets a tick (none may be skipped); labels are
+  // dropped only where two rows are already full at that spot
+  const last=[-1e9,-1e9,-1e9]; let selRow=0;
+  const drawn=list.filter(md=>md.fc<=fmax);
+  const selMd=drawn.find(md=>same(md,st.mode));
+  drawn.concat(selMd?[selMd]:[]).forEach((md,k)=>{
+    const again=k>=drawn.length; // second pass: selected tick on top
+    const x=X(md.fc), sel=same(md,st.mode);
     g.strokeStyle=sel?br:ink2; g.lineWidth=sel?2:1;
     g.globalAlpha=sel?1:.7;
-    g.beginPath(); g.moveTo(x,T+6); g.lineTo(x,T+ph); g.stroke();
+    g.beginPath(); g.moveTo(x,T+32); g.lineTo(x,T+ph); g.stroke(); // clear of the 3 label rows
     g.globalAlpha=1;
     g.fillStyle=sel?br:ink2; g.font=(sel?"500 ":"")+"11px "+col("--mono");
     g.textAlign="center";
-    g.fillText(label(md),x,T+4+row*13);
-    row=(row+1)%2;
+    const twin=md.m>=1&&md.n>=1, lab=twin?pairLabel(md):label(md);
+    const wlab=g.measureText(lab).width+6;
+    if(again){ g.fillText(label(md),x,T+4+selRow*12); return; }
+    if(twin && !sel && (md.t==="TM" || same({t:"TM",m:md.m,n:md.n},st.mode))) return; // labelled with its twin
+    const row=[0,1,2].find(r=>x-last[r]>=wlab);
+    if(sel){ selRow=row===undefined?0:row; last[selRow]=x; }
+    else if(row!==undefined){ g.fillText(lab,x,T+4+row*12); last[row]=x; }
   });
 
   // operating frequency
@@ -315,7 +356,9 @@ function drawSpec(){
   g.fillStyle=br; g.beginPath();
   g.moveTo(xf,T+ph); g.lineTo(xf-5,T+ph+8); g.lineTo(xf+5,T+ph+8); g.closePath(); g.fill();
 
-  $("bandTxt").innerHTML="single mode "+fmtF(f1)+"–"+fmtF(f2)+" GHz";
+  $("bandTxt").innerHTML= f2-f1>1e-6*f1
+    ? "single mode "+fmtF(f1)+"–"+fmtF(f2)+" GHz (to "+label(list[1])+")"
+    : "no single-mode band: "+label(list[0])+" and "+label(list[1])+" are degenerate";
 }
 
 /* ---------------- cross section ---------------- */
@@ -386,19 +429,22 @@ function drawField(){
   g.fillText("b = "+(st.b*1000).toFixed(2)+" mm",0,0); g.restore();
 
   const lz=md.t==="TE"?"H<sub>z</sub>":"E<sub>z</sub>";
-  $("fieldTag").innerHTML=label(md)+(p.prop?"":" &middot; evanescent");
+  $("fieldTag").innerHTML=label(md)+(p.prop?"":p.atCut?" &middot; at cutoff":" &middot; evanescent");
   $("fieldLegend").innerHTML=
     '<span><i style="background:var(--brass)"></i>'+lz+' out of page</span>'+
     '<span><i style="background:var(--teal)"></i>'+lz+' into page</span>'+
-    '<span>arrows: transverse '+st.arrows+'</span>';
+    '<span>arrows: transverse '+st.arrows+'</span>'+
+    '<span>colour and arrows normalized independently</span>';
 }
 
 /* ---------------- dispersion ---------------- */
 function drawDisp(){
   const {g,w,h}=fit($("cDisp"),250);
   const L=46,R=12,T=12,B=32, pw=w-L-R, ph=h-T-B;
-  const list=modeList().slice(0,5);
-  const fmax=Math.max(st.f*1.15, list[list.length-1].fc*1.25);
+  const list=modeList().slice(0,10);
+  if(!list.some(md=>same(md,st.mode))) list.push({...st.mode,fc:fcOf(st.mode.t,st.mode.m,st.mode.n,st.a,st.b,st.er)});
+  const selFc=fcOf(st.mode.t,st.mode.m,st.mode.n,st.a,st.b,st.er);
+  const fmax=Math.max(st.f*1.15, list[Math.min(4,list.length-1)].fc*1.25, selFc*1.25);
   const bmax=2*Math.PI*fmax*Math.sqrt(st.er)/C;
   const X=f=>L+pw*f/fmax, Y=b=>T+ph-ph*b/bmax;
   const ink=col("--ink"),ink2=col("--ink2"),br=col("--brass"),te=col("--teal"),grid=col("--grid");
@@ -412,8 +458,13 @@ function drawDisp(){
   g.beginPath(); g.moveTo(X(0),Y(0)); g.lineTo(X(fmax),Y(bmax)); g.stroke();
   g.setLineDash([]);
 
+  // selected mode drawn last so it sits on top
+  list.sort((p,q)=>same(p,st.mode)?1:same(q,st.mode)?-1:0);
+  g.font="500 10.5px "+col("--mono");
+  const labX=[X(selFc)+3];  // the selected label always wins its spot
   list.forEach(md=>{
-    const sel=md.t===st.mode.t&&md.m===st.mode.m&&md.n===st.mode.n;
+    const sel=same(md,st.mode);
+    if(md.fc>=fmax) return;
     g.strokeStyle=sel?br:ink2; g.lineWidth=sel?2.4:1.2; g.globalAlpha=sel?1:.55;
     g.beginPath(); let first=true;
     for(let i=0;i<=160;i++){
@@ -424,10 +475,15 @@ function drawDisp(){
       if(first){g.moveTo(X(f),Y(b));first=false;} else g.lineTo(X(f),Y(b));
     }
     g.stroke();
-    if(md.fc<fmax*0.92){
+    // label at the cutoff; skip unselected labels that would collide
+    g.font=(sel?"500 ":"")+"10.5px "+col("--mono");
+    const twin=md.m>=1&&md.n>=1, lab=sel?label(md):twin?pairLabel(md):label(md);
+    const lx=X(md.fc)+3, lw=g.measureText(lab).width+4;
+    const twinSkip=twin&&!sel&&(md.t==="TM"||same({t:"TM",m:md.m,n:md.n},st.mode));
+    if(md.fc<fmax*0.92 && !twinSkip && (sel || !labX.some(q=>Math.abs(q-lx)<lw))){
+      if(!sel) labX.push(lx);
       g.globalAlpha=sel?1:.6; g.fillStyle=sel?br:ink2;
-      g.font=(sel?"500 ":"")+"10.5px "+col("--mono");
-      g.textAlign="left"; g.fillText(label(md),X(md.fc)+3,Y(0)-4);
+      g.textAlign="left"; g.fillText(lab,lx,Y(0)-4);
     }
     g.globalAlpha=1;
   });
@@ -444,10 +500,21 @@ function drawDisp(){
   g.strokeStyle=col("--rule"); g.lineWidth=1;
   g.beginPath(); g.moveTo(L,T+ph+.5); g.lineTo(L+pw,T+ph+.5); g.stroke();
   g.beginPath(); g.moveTo(L+.5,T); g.lineTo(L+.5,T+ph); g.stroke();
-  g.fillStyle=ink2; g.font="11px "+col("--mono"); g.textAlign="center";
-  g.fillText((fmax/1e9).toFixed(0)+" GHz",L+pw-20,T+ph+16);
-  g.textAlign="left"; g.fillText("β (rad/m)",L+2,T+8);
-  g.fillText(bmax.toFixed(0),L+2,T+ph-3);
+  g.fillStyle=ink2; g.font="11px "+col("--mono");
+  // frequency ticks
+  const fs=niceStep(fmax/1e9,5), fdec=fs<1?Math.ceil(-Math.log10(fs)):0;
+  g.textAlign="center";
+  for(let i=0;i*fs<=fmax/1e9+1e-9;i++){
+    const x=X(i*fs*1e9);
+    g.beginPath(); g.moveTo(x,T+ph); g.lineTo(x,T+ph+4); g.stroke();
+    if(x<L+pw-34) g.fillText((i*fs).toFixed(fdec),x,T+ph+16);
+  }
+  g.textAlign="right"; g.fillText("GHz",L+pw,T+ph+16);
+  // beta axis: 0 at the bottom, beta_max at the top (gridlines are quarters of it)
+  g.textAlign="right";
+  g.fillText("0",L-4,T+ph+4);
+  g.fillText(bmax.toFixed(0),L-4,T+10);
+  g.textAlign="left"; g.fillText("β (rad/m)",L+4,T+10);
 }
 
 /* ---------------- readouts ---------------- */
@@ -456,17 +523,20 @@ function drawRO(){
   const rows=[
     ["Status", p.prop
       ?'<span class="status go">propagating</span>'
+      :p.atCut?'<span class="status cut">at cutoff</span>'
       :'<span class="status no">evanescent</span>',""],
     ["Cutoff "+label(md), fmtF(p.fc), "GHz"],
     ["TE₁₀ cutoff", fmtF(fcOf("TE",1,0,st.a,st.b,st.er)), "GHz"],
     ["Guide wavelength", p.prop?(p.lamg*1000).toFixed(2):"—", "mm"],
-    ["Free-space λ", (p.lam*1000).toFixed(2), "mm"],
+    ["Free-space λ₀", (p.lam0*1000).toFixed(2), "mm"],
+    ["λ in fill (λ₀/√εr)", (p.lam*1000).toFixed(2), "mm"],
     ["β", p.prop?p.beta.toFixed(1):"0", "rad/m"],
-    ["Decay α", p.prop?"0":p.alpha.toFixed(1), "Np/m"],
+    ["Decay α", p.prop||p.atCut?"0":p.alpha.toFixed(1), "Np/m"],
+    ["Decay α (dB)", p.prop||p.atCut?"0":(8.685889638*p.alpha).toFixed(0), "dB/m"],
     ["Wave impedance", p.prop?p.Z.toFixed(1):"—", "Ω"],
     ["Phase velocity", p.prop?(p.vp/C).toFixed(3):"—", "c"],
     ["Group velocity", p.prop?(p.vg/C).toFixed(3):"—", "c"],
-    ["TE₁₀ wall loss", isNaN(aL)?"—":aL.toFixed(3), "dB/m"]
+    ["TE₁₀ wall loss", isNaN(aL)?"—":aL.toPrecision(3), "dB/m"]
   ];
   $("ro").innerHTML=rows.map(r=>
     '<div class="ro"><dt>'+r[0]+'</dt><dd>'+r[1]+(r[2]?' <small>'+r[2]+'</small>':'')+'</dd></div>'
@@ -475,17 +545,19 @@ function drawRO(){
 
 /* ---------------- controls ---------------- */
 function fSliderToF(v){
+  if(st.fmode==="abs") return F_LO*Math.pow(F_HI/F_LO, v/1000);   // log scale, geometry-independent
   const fc=fcOf("TE",1,0,st.a,st.b,st.er);
   return fc*(0.35+ (3.05)*v/1000);
 }
 function fToSlider(f){
+  if(st.fmode==="abs") return Math.max(0,Math.min(1000, Math.round(1000*Math.log(f/F_LO)/Math.log(F_HI/F_LO))));
   const fc=fcOf("TE",1,0,st.a,st.b,st.er);
   return Math.max(0,Math.min(1000, Math.round((f/fc-0.35)/3.05*1000)));
 }
 function buildModes(){
   const list=modeList().slice(0,10);
   $("modes").innerHTML=list.map(md=>{
-    const sel=md.t===st.mode.t&&md.m===st.mode.m&&md.n===st.mode.n;
+    const sel=same(md,st.mode);
     const off=md.fc>st.f?" off":"";
     return '<button class="mbtn'+off+'" data-t="'+md.t+'" data-m="'+md.m+'" data-n="'+md.n+
       '" aria-pressed="'+sel+'">'+label(md)+'<span>'+fmtF(md.fc)+' GHz</span></button>';
@@ -517,15 +589,25 @@ function render(){
   $("bV").textContent=(st.b*1000).toFixed(2)+" mm";
   $("eV").textContent=st.er.toFixed(2);
   $("fV").textContent=fmtF(st.f)+" GHz";
+  $("fRatio").textContent="f/fc10 = "+(st.f/fcOf("TE",1,0,st.a,st.b,st.er)).toFixed(3);
+  if(document.activeElement!==$("fN")) $("fN").value=(st.f/1e9).toFixed(3);
+  $("fAbs").setAttribute("aria-pressed",st.fmode==="abs");
+  $("fNorm").setAttribute("aria-pressed",st.fmode==="norm");
   $("arrE").setAttribute("aria-pressed",st.arrows==="E");
   $("arrH").setAttribute("aria-pressed",st.arrows==="H");
   syncPresets(); buildModes(); drawSpec(); drawField(); drawDisp(); drawRO();
 }
 
-$("aS").oninput=e=>{ st.a=+e.target.value/1000; if(st.b>st.a){st.b=st.a;$("bS").value=(st.a*1000).toFixed(2);} st.f=fSliderToF(+$("fS").value); render(); };
-$("bS").oninput=e=>{ st.b=Math.min(+e.target.value/1000,st.a); render(); };
-$("eS").oninput=e=>{ st.er=+e.target.value; st.f=fSliderToF(+$("fS").value); render(); };
+// In absolute mode the source frequency is held while the geometry changes;
+// in normalized mode it follows f/fc10.
+const followGeom=()=>{ if(st.fmode==="norm") st.f=fSliderToF(+$("fS").value); else $("fS").value=fToSlider(st.f); };
+$("aS").oninput=e=>{ st.a=+e.target.value/1000; if(st.b>st.a){st.b=st.a;$("bS").value=(st.a*1000).toFixed(2);} followGeom(); render(); };
+$("bS").oninput=e=>{ st.b=Math.min(+e.target.value/1000,st.a); if(+e.target.value/1000>st.a) e.target.value=(st.a*1000).toFixed(2); render(); };
+$("eS").oninput=e=>{ st.er=+e.target.value; followGeom(); render(); };
 $("fS").oninput=e=>{ st.f=fSliderToF(+e.target.value); render(); };
+$("fN").onchange=e=>{ const v=+e.target.value; if(v>0){ st.f=Math.min(F_HI,Math.max(F_LO,v*1e9)); $("fS").value=fToSlider(st.f); } render(); };
+$("fAbs").onclick=()=>{ st.fmode="abs"; $("fS").value=fToSlider(st.f); render(); };
+$("fNorm").onclick=()=>{ st.fmode="norm"; $("fS").value=fToSlider(st.f); st.f=fSliderToF(+$("fS").value); render(); };
 $("arrE").onclick=()=>{st.arrows="E";render();};
 $("arrH").onclick=()=>{st.arrows="H";render();};
 
