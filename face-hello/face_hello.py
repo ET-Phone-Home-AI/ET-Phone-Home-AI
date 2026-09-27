@@ -220,11 +220,32 @@ def read_image(path):
     return cv2.imdecode(np.fromfile(path, dtype=np.uint8), cv2.IMREAD_COLOR)
 
 
+def pick_folder():
+    """Open the normal 'choose a folder' window so nobody has to type a path."""
+    try:
+        import tkinter as tk                               # built into Python
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()                                    # hide the empty main window
+        root.attributes("-topmost", True)                  # show the picker in front of PyCharm
+        start = Path.home() / "Desktop"
+        folder = filedialog.askdirectory(title="Choose the folder with photos of ONLY this person",
+                                         initialdir=start if start.exists() else Path.home())
+        root.destroy()
+        return folder                                      # "" if they pressed Cancel
+    except Exception:                                      # no window possible? type it instead
+        return input("Folder with photos of ONLY this person: ").strip().strip('"')
+
+
 def enroll_folder(people):
     name = ask_name_and_consent()
     if not name:
         return
-    folder = input("Folder with photos of ONLY this person: ").strip().strip('"')
+    print("A folder window is opening (it may be behind PyCharm)...")
+    folder = pick_folder()
+    if not folder:
+        print("No folder chosen.")
+        return
     if not os.path.isdir(folder):
         print("That folder does not exist.")
         return

@@ -15,7 +15,7 @@ pip install insightface onnxruntime opencv-python numpy piper-tts
 python face_hello.py
 ```
 
-Menu: 1) enroll with webcam · 2) enroll from a photo folder · 3) run recognition ·
+Menu: 1) enroll with webcam · 2) enroll from a photo folder (a folder picker opens)  · 3) run recognition ·
 4) list people · 5) delete a person · 6) delete ALL face data · `q` to quit.
 
 In the video window: `+` / `-` change the recognition threshold, `Q` returns to the menu.
