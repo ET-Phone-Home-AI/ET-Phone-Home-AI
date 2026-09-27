@@ -38,6 +38,7 @@ never upload it (it is in .gitignore), and delete it when the lab ends.
 """
 
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -50,6 +51,7 @@ from insightface.app import FaceAnalysis
 # ---------------------------------------------------------------------------
 THRESHOLD = 0.40          # match score needed to say a name (tune this in lab!)
 CAMERA_INDEX = 0          # 0 = built-in webcam; try 1 if the window is black
+DET_SIZE = 320            # detector input size: 320 = faster, 640 = finds faces farther away
 ENROLL_FRAMES = 5         # how many frames to average when enrolling
 ENROLL_GAP_SECONDS = 0.6  # wait between enrollment frames so they differ a bit
 DB_FILE = Path(__file__).with_name("faces.npz")   # saved next to this script
@@ -66,10 +68,12 @@ DARK = (40, 35, 14)
 def load_face_app():
     """Load InsightFace's buffalo_l pack: SCRFD detector + ArcFace ResNet-50."""
     print("Loading face models (first time downloads ~280 MB)...")
-    app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
+    # buffalo_l contains 5 models; we only need 2 of them. Skipping the other
+    # three (3D landmarks, 106 landmarks, age/gender) makes every frame faster.
+    app = FaceAnalysis(name="buffalo_l", allowed_modules=["detection", "recognition"],
+                       providers=["CPUExecutionProvider"])
     # ctx_id=-1 means "use the CPU" - no graphics card needed.
-    # det_size is the size the detector looks at; 640x640 is the default.
-    app.prepare(ctx_id=-1, det_size=(640, 640))
+    app.prepare(ctx_id=-1, det_size=(DET_SIZE, DET_SIZE))
     return app
 
 
@@ -138,15 +142,45 @@ def draw_banner(frame, text):
     cv2.putText(frame, text, (12, 27), cv2.FONT_HERSHEY_SIMPLEX, 0.75, WHITE, 2)
 
 
-def open_camera():
-    cam = cv2.VideoCapture(CAMERA_INDEX)
-    ok, _ = cam.read()
-    if not ok:
-        cam.release()
-        sys.exit(f"Could not read from camera {CAMERA_INDEX}. Try CAMERA_INDEX = 1, "
-                 "close other apps using the camera, or allow camera access "
-                 "(macOS: System Settings > Privacy > Camera > PyCharm/Terminal).")
-    return cam
+class Camera:
+    """
+    Reads the webcam in a background thread and keeps ONLY the newest frame.
+
+    Why: the camera delivers ~30 frames per second, but face recognition
+    handles only a few per second on a laptop CPU. If we read frames one by
+    one, the unread ones pile up in a queue and the picture lags seconds
+    behind reality. Throwing old frames away keeps the video live.
+    """
+
+    def __init__(self):
+        self.cam = cv2.VideoCapture(CAMERA_INDEX)
+        ok, frame = self.cam.read()
+        if not ok:
+            self.cam.release()
+            sys.exit(f"Could not read from camera {CAMERA_INDEX}. Try CAMERA_INDEX = 1, "
+                     "close other apps using the camera, or allow camera access "
+                     "(macOS: System Settings > Privacy > Camera > PyCharm/Terminal).")
+        self.frame = frame
+        self.lock = threading.Lock()      # stops two threads touching self.frame at once
+        self.running = True
+        threading.Thread(target=self._keep_reading, daemon=True).start()
+
+    def _keep_reading(self):
+        while self.running:
+            ok, frame = self.cam.read()
+            if ok:
+                with self.lock:
+                    self.frame = frame    # overwrite: older frames are simply dropped
+
+    def read(self):
+        """Return a copy of the newest frame."""
+        with self.lock:
+            return self.frame.copy()
+
+    def release(self):
+        self.running = False
+        time.sleep(0.1)                   # let the reading thread finish its last read
+        self.cam.release()
 
 
 # ---------------------------------------------------------------------------
@@ -159,15 +193,13 @@ def enroll(name):
         return
 
     app = load_face_app()
-    cam = open_camera()
+    cam = Camera()
     collected = []
     last_grab = 0.0
     print(f"Look at the camera, {name}. Move your head a little between captures. Press q to cancel.")
 
     while len(collected) < ENROLL_FRAMES:
-        ok, frame = cam.read()
-        if not ok:
-            break
+        frame = cam.read()
         faces = app.get(frame)            # detect + align + embed, all in one call
 
         if len(faces) == 1:
@@ -288,6 +320,36 @@ def enroll_folder(folder_path):
 # ---------------------------------------------------------------------------
 # 6. RUN: live recognition with a greeting
 # ---------------------------------------------------------------------------
+class FaceWorker:
+    """
+    Runs face recognition in a background thread, over and over, on the
+    newest camera frame. The main loop can then show smooth live video and
+    simply draw the most recent results on top of it.
+    """
+
+    def __init__(self, app, cam, names, vectors):
+        self.app, self.cam = app, cam
+        self.names, self.vectors = names, vectors
+        self.results = []                 # list of (box, name, score)
+        self.ai_fps = 0.0
+        self.running = True
+        threading.Thread(target=self._keep_recognizing, daemon=True).start()
+
+    def _keep_recognizing(self):
+        while self.running:
+            start = time.time()
+            results = []
+            for face in self.app.get(self.cam.read()):
+                name, score = best_match(face.normed_embedding, self.names, self.vectors)
+                results.append((face.bbox.astype(int), name, score))
+            self.results = results        # replace the whole list in one step
+            # How many frames per second the AI manages (smoothed)
+            self.ai_fps = 0.8 * self.ai_fps + 0.2 / max(time.time() - start, 1e-6)
+
+    def stop(self):
+        self.running = False
+
+
 def run():
     global THRESHOLD
     names, vectors = load_db()
@@ -296,37 +358,27 @@ def run():
               "Try: python face_id.py enroll YourName")
 
     app = load_face_app()
-    cam = open_camera()
-    last_time = time.time()
-    fps = 0.0
+    cam = Camera()
+    worker = FaceWorker(app, cam, names, vectors)
     print("Running. Keys:  q = quit   + / - = raise / lower THRESHOLD")
 
     while True:
-        ok, frame = cam.read()
-        if not ok:
-            break
+        frame = cam.read()                # always the newest frame -> no lag
 
         greeted = []
-        for face in app.get(frame):
-            name, score = best_match(face.normed_embedding, names, vectors)
+        for (x1, y1, x2, y2), name, score in worker.results:
             color = ORANGE if name == "Unknown" else GREEN
-            x1, y1, x2, y2 = face.bbox.astype(int)
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
             # Always show the score: that is the data you record in the lab
             draw_label(frame, f"{name}  {score:.2f}", x1, y1, color)
             if name != "Unknown":
                 greeted.append(name)
 
-        # Frames per second, smoothed so the number does not jump around
-        now = time.time()
-        fps = 0.9 * fps + 0.1 * (1.0 / max(now - last_time, 1e-6))
-        last_time = now
-
         greeting = "Hello, " + ", ".join(greeted) + "!" if greeted else "Hello... who are you?"
-        draw_banner(frame, f"{greeting}    threshold {THRESHOLD:.2f}   {fps:.0f} fps")
+        draw_banner(frame, f"{greeting}    threshold {THRESHOLD:.2f}   AI {worker.ai_fps:.1f} fps")
         cv2.imshow("Face ID (q = quit, +/- = threshold)", frame)
 
-        key = cv2.waitKey(1) & 0xFF
+        key = cv2.waitKey(30) & 0xFF      # ~30 screen updates per second
         if key == ord("q"):
             break
         elif key in (ord("+"), ord("=")):
@@ -334,6 +386,8 @@ def run():
         elif key in (ord("-"), ord("_")):
             THRESHOLD = max(THRESHOLD - 0.02, 0.0)
 
+    worker.stop()
+    time.sleep(0.5)                       # let the last recognition finish
     cam.release()
     cv2.destroyAllWindows()
 
