@@ -74,7 +74,14 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 figure{margin:0;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:12px}
 figcaption{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:11px;color:var(--ink2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
 figcaption strong{color:var(--ink);text-transform:none;letter-spacing:0;font-size:12.5px}
+figcaption span{text-transform:none;letter-spacing:.02em}
 svg.diagram{width:100%;height:auto;display:block}
+/* wide diagrams scroll sideways on a phone rather than shrinking their text */
+#ladderSvg,#tlSvg,#layoutSvg{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.asm{margin:0;padding-left:16px;font-size:11px;color:var(--ink2);line-height:1.55}
+.asm li{margin-bottom:5px}
+.asm li:last-child{margin-bottom:0}
+.asm b{color:var(--ink);font-weight:500}
 text{font-family:var(--mono)}
 
 .readouts{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:7px;overflow:hidden}
@@ -86,7 +93,8 @@ text{font-family:var(--mono)}
 .note b{color:var(--amber)}
 
 .gridline{stroke:var(--line);stroke-width:1}
-.axislabel{fill:var(--ink3);font-size:9px}
+.axislabel{font-size:9px;paint-order:stroke;stroke:var(--panel2);stroke-width:3px;stroke-linejoin:round}
+.axislabel:not([fill]){fill:var(--ink3)}
 .curve21{fill:none;stroke:var(--blue);stroke-width:2}
 .curve11{fill:none;stroke:var(--pink);stroke-width:1.4;stroke-dasharray:4 3}
 .refline{stroke:var(--ink3);stroke-width:1;stroke-dasharray:2 3}
@@ -101,7 +109,7 @@ footer.site a{color:var(--ink3)}
   <div class="hdr">
     <div class="hdr-title"><span class="dot"></span>MICROSTRIP FILTER SYNTHESIS</div>
     <div class="hdr-sub">
-      Insertion-loss method<span class="sep">|</span>Butterworth / Chebyshev<span class="sep">|</span>Richard's transform + Kuroda identities<span class="sep">|</span>Prof. E. Topsakal · VCU ECE<span class="sep">|</span><span id="buildTag" style="opacity:.65">build 2026-09-26a</span>
+      Insertion-loss method<span class="sep">|</span>Butterworth / Chebyshev<span class="sep">|</span>Richard's transform + Kuroda identities<span class="sep">|</span>Prof. E. Topsakal · VCU ECE<span class="sep">|</span><span id="buildTag" style="opacity:.65">build 2026-09-26b</span>
     </div>
   </div>
 
@@ -181,6 +189,21 @@ footer.site a{color:var(--ink3)}
         </div>
       </div>
 
+      <div class="card" id="cardAsm">
+        <button class="card-hd" data-card="cardAsm"><span class="tri">▾</span>Assumptions &amp; Model Limits</button>
+        <div class="card-bd">
+          <ul class="asm">
+            <li><b>Lossless and ideal.</b> No conductor, dielectric or radiation loss anywhere.</li>
+            <li><b>The plotted curve is the lumped prototype</b>, not the layout. The notes quote what each drawn network does where it differs.</li>
+            <li><b>Reference impedances.</b> <span id="asmRef"></span></li>
+            <li><b>Microstrip model.</b> Single lines: Hammerstad&ndash;Jensen static Z<sub>0</sub>/&epsilon;<sub>eff</sub>, solved numerically for W, plus Kirschning&ndash;Jansen dispersion for lengths. Coupled lines: Kirschning&ndash;Jansen quasi-static even/odd model.</li>
+            <li><b>Zero conductor thickness</b>; ideal ground plane and vias except where a via's inductance is stated.</li>
+            <li><b>Discontinuities not included</b>: T-junctions, width steps, open ends and gaps.</li>
+            <li><b>Dimensions are starting points</b> for EM verification, not a fabrication-ready layout.</li>
+          </ul>
+        </div>
+      </div>
+
     </div>
 
     <div class="col">
@@ -245,7 +268,7 @@ function gButterworth(n){
   return g;
 }
 function gChebyshev(n, rippleDb){
-  const beta=Math.log(1/Math.tanh(rippleDb/17.37));
+  const beta=Math.log(1/Math.tanh(rippleDb/(40/Math.LN10)));   // 40/ln10 = 17.3718..., not the rounded 17.37
   const gamma=Math.sinh(beta/(2*n));
   const a=k=>Math.sin((2*k-1)*Math.PI/(2*n));
   const b=k=>gamma*gamma+Math.sin(k*Math.PI/n)**2;
@@ -339,15 +362,21 @@ function richardsStubs(elements,wc){
   });
 }
 // Verified exact (<1e-12, N=1,2,3) via UE(Za)*seriesStub(Zb) = shuntStub(Zc)*UE(Zd), Zd=Za+Zb, Zc=Za(Za+Zb)/Zb
-function kurodaReduceOdd(stubs,Z0){
+/* Unit elements are added where they are transparent: at the source they are
+   matched to Z0, at the load to ZL. For N=2 (even order) the load is ZL =
+   g3*Z0, not Z0, so the trailing UE must be ZL - a Z0 line there would be a
+   mismatched quarter-of-a-quarter-wave section and shift the passband. N=1
+   needs no trailing UE at all. */
+function kurodaReduceOdd(stubs,Z0,ZL){
   const n=stubs.length;
+  if(ZL===undefined) ZL=Z0;
   if(n===1){
     const Zb=stubs[0].Zstub, Zd=Z0+Zb, Zc=Z0*(Z0+Zb)/Zb;
-    return [{type:'shunt',Z:Zc},{type:'ue',Z:Zd},{type:'ue',Z:Z0}];
+    return [{type:'shunt',Z:Zc},{type:'ue',Z:Zd}];
   }
   if(n===2){
     const [s1,s2]=stubs, Zd1=Z0+s1.Zstub, Zc1=Z0*(Z0+s1.Zstub)/s1.Zstub;
-    return [{type:'shunt',Z:Zc1},{type:'ue',Z:Zd1},{type:'shunt',Z:s2.Zstub},{type:'ue',Z:Z0}];
+    return [{type:'shunt',Z:Zc1},{type:'ue',Z:Zd1},{type:'shunt',Z:s2.Zstub},{type:'ue',Z:ZL}];
   }
   const [s1,s2,s3]=stubs;
   const Zd1=Z0+s1.Zstub, Zc1=Z0*(Z0+s1.Zstub)/s1.Zstub;
@@ -361,30 +390,193 @@ function coupledLineSections(g,Z0,fracBW){
   J.push(Math.sqrt(Math.PI*fracBW/(2*g[n]*g[n+1])));
   return J.map(JoverY0=>({JoverY0, Z0e:Z0*(1+JoverY0+JoverY0*JoverY0), Z0o:Z0*(1-JoverY0+JoverY0*JoverY0)}));
 }
+
+/* ================= microstrip model =================
+   One model for every line on the board: Hammerstad-Jensen (1980) static
+   analysis, zero strip thickness, ~0.2% in Z0 over 0.01<=W/h<=100.
+   SYNTHESIS inverts the analysis numerically (Z0 falls monotonically with
+   W/h), so it cannot jump branches or go negative the way the closed-form
+   Hammerstad inversion did at er~1 and 20 ohm. Single lines add
+   Kirschning-Jansen (1982) dispersion for the physical lengths; coupled lines
+   use the Kirschning-Jansen quasi-static even/odd model further down. */
+const ETA0=376.730313668;
+function msEeffHJ(u,er){
+  const a=1+Math.log((u**4+(u/52)**2)/(u**4+0.432))/49+Math.log(1+(u/18.1)**3)/18.7;
+  const b=0.564*Math.pow((er-0.9)/(er+3),0.053);
+  return (er+1)/2+(er-1)/2*Math.pow(1+10/u,-a*b);
+}
+function msZ0HJ(u,er){
+  const f=6+(2*Math.PI-6)*Math.exp(-Math.pow(30.666/u,0.7528));
+  return ETA0/(2*Math.PI*Math.sqrt(msEeffHJ(u,er)))*Math.log(f/u+Math.sqrt(1+4/(u*u)));
+}
+const WH_MIN=0.005, WH_MAX=50;
+// bisection on ln(W/h): always finite, always inside [WH_MIN, WH_MAX]
 function microstripSynthWh(Z0,er){
-  const A=Z0/60*Math.sqrt((er+1)/2)+(er-1)/(er+1)*(0.23+0.11/er);
-  const WhA=8*Math.exp(A)/(Math.exp(2*A)-2);
-  if(WhA<2) return WhA;
-  const B=377*Math.PI/(2*Z0*Math.sqrt(er));
-  return (2/Math.PI)*(B-1-Math.log(2*B-1)+(er-1)/(2*er)*(Math.log(B-1)+0.39-0.61/er));
+  let lo=Math.log(WH_MIN), hi=Math.log(WH_MAX);
+  if(!(Z0>0)) return WH_MAX;
+  if(msZ0HJ(WH_MIN,er)<=Z0) return WH_MIN;       // asks for more than the narrowest line can give
+  if(msZ0HJ(WH_MAX,er)>=Z0) return WH_MAX;
+  for(let i=0;i<64;i++){ const m=0.5*(lo+hi); if(msZ0HJ(Math.exp(m),er)>Z0) lo=m; else hi=m; }
+  return Math.exp(0.5*(lo+hi));
 }
-function microstripEffEps(Wh,er){
-  if(Wh>=1) return (er+1)/2+(er-1)/2*Math.pow(1+12/Wh,-0.5);
-  return (er+1)/2+(er-1)/2*(Math.pow(1+12/Wh,-0.5)+0.04*Math.pow(1-Wh,2));
+function microstripEffEps(Wh,er){ return msEeffHJ(Wh,er); }   // static (f -> 0)
+// Kirschning-Jansen (1982) dispersion: eeff(f) rises from the static value toward er
+function microstripEffEpsF(Wh,er,freqHz,h_mm){
+  const e0=msEeffHJ(Wh,er), u=Wh, fn=freqHz/1e9*h_mm;          // fn in GHz*mm
+  const P1=0.27488+(0.6315+0.525/Math.pow(1+0.0157*fn,20))*u-0.065683*Math.exp(-8.7513*u);
+  const P2=0.33622*(1-Math.exp(-0.03442*er));
+  const P3=0.0363*Math.exp(-4.6*u)*(1-Math.exp(-Math.pow(fn/38.7,4.97)));
+  const P4=1+2.751*(1-Math.exp(-Math.pow(er/15.916,8)));
+  const P=P1*P2*Math.pow((0.1844+P3*P4)*fn,1.5763);
+  return er-(er-e0)/(1+P);
 }
-// Physical length for a commensurate line of electrical length thetaDeg at frequency freqHz, given its own W/h (-> eeff -> guide wavelength)
+// Physical length for a line of electrical length thetaDeg at frequency freqHz, given its own W/h (-> eeff(f) -> guide wavelength)
 function physLenMm(Wh, er, freqHz, thetaDeg, h_mm){
-  const eeff=microstripEffEps(Wh,er);
+  const eeff=microstripEffEpsF(Wh,er,freqHz,h_mm);
   const lambdaG = C/(freqHz*Math.sqrt(eeff)) * 1000; // mm
   return lambdaG*(thetaDeg/360);
+}
+const lambdaGmm=(Wh,er,fHz,h)=>C/(fHz*Math.sqrt(microstripEffEpsF(Wh,er,fHz,h)))*1000;
+
+/* ===== coupled-microstrip analysis + synthesis =====
+   Analysis: Hammerstad-Jensen single line + Kirschning-Jansen (1984) static
+   even/odd-mode Z0 and eeff, zero strip thickness. KJ stated range
+   0.1<=W/h<=10, 0.1<=s/h<=10, 1<=er<=18 (~1% vs a 2-D field solve).
+   Quasi-static: no dispersion is applied to the coupled lines.
+   Synthesis: damped Newton, falling back to nested bisection -> never NaN. */
+function coupledMsAnalyze(u,g,er){           // u=W/h, g=s/h
+  const ee=msEeffHJ(u,er), Z=msZ0HJ(u,er);
+  const v=u*(20+g*g)/(10+g*g)+g*Math.exp(-g);
+  const ae=1+Math.log((v**4+(v/52)**2)/(v**4+0.432))/49+Math.log(1+(v/18.1)**3)/18.7;
+  const be=0.564*Math.pow((er-0.9)/(er+3),0.053);
+  const eeE=(er+1)/2+(er-1)/2*Math.pow(1+10/v,-ae*be);
+  const ao=0.7287*(ee-(er+1)/2)*(1-Math.exp(-0.179*u));
+  const bo=0.747*er/(0.15+er);
+  const co=bo-(bo-0.207)*Math.exp(-0.414*u);
+  const d0=0.593+0.694*Math.exp(-0.562*u);
+  const eeO=((er+1)/2+ao-ee)*Math.exp(-co*Math.pow(g,d0))+ee;
+  const Q1=0.8695*Math.pow(u,0.194);
+  const Q2=1+0.7519*g+0.189*Math.pow(g,2.31);
+  const Q3=0.1975+Math.pow(16.6+Math.pow(8.4/g,6),-0.387)+Math.log(Math.pow(g,10)/(1+Math.pow(g/3.4,10)))/241;
+  const Q4=2*Q1/Q2/(Math.exp(-g)*Math.pow(u,Q3)+(2-Math.exp(-g))*Math.pow(u,-Q3));
+  const Q5=1.794+1.14*Math.log(1+0.638/(g+0.517*Math.pow(g,2.43)));
+  const Q6=0.2305+Math.log(Math.pow(g,10)/(1+Math.pow(g/5.8,10)))/281.3+Math.log(1+0.598*Math.pow(g,1.154))/5.1;
+  const Q7=(10+190*g*g)/(1+82.3*g*g*g);
+  const Q8=Math.exp(-6.5-0.95*Math.log(g)-Math.pow(g/0.15,5));
+  const Q9=Math.log(Q7)*(Q8+1/16.5);
+  const Q10=Q4-Q5/Q2*Math.exp(Q6*Math.log(u)*Math.pow(u,-Q9));
+  const Z0e=Z*Math.sqrt(ee/eeE)/(1-Z/ETA0*Math.sqrt(ee)*Q4);
+  const Z0o=Z*Math.sqrt(ee/eeO)/(1-Z/ETA0*Math.sqrt(ee)*Q10);
+  return {Z0e,Z0o,eeffE:eeE,eeffO:eeO};
+}
+// open-end extension of a single strip (Hammerstad-Bekkadal), in units of h
+function msOpenEndDl(u,er){ const e=msEeffHJ(u,er); return 0.412*(e+0.3)*(u+0.264)/((e-0.258)*(u+0.8)); }
+
+function bisect(f,lo,hi,it){ // f decreasing; returns x in [lo,hi] with f(x)~0 (clamped)
+  let flo=f(lo), fhi=f(hi);
+  if(flo<=0) return {x:lo,clamp:'lo'}; if(fhi>=0) return {x:hi,clamp:'hi'};
+  for(let i=0;i<(it||60);i++){ const m=0.5*(lo+hi); if(f(m)>0) lo=m; else hi=m; }
+  return {x:0.5*(lo+hi),clamp:null};
+}
+const U_MIN=0.02, U_MAX=20, G_MAX=10;
+/* Solve (W,s) so that analysed Z0e,Z0o hit the targets.
+   opts: {sMin_mm (default 0.05), f0Hz, openEnd (bool), fixedWh (uniform-width mode)} */
+function coupledMsSynth(Z0e,Z0o,er,h,opts){
+  opts=opts||{};
+  const sMin=opts.sMin_mm!==undefined?opts.sMin_mm:0.05, gMin=Math.max(sMin/h,1e-3);
+  const warn=[];
+  if(!(Z0e>Z0o&&Z0o>0)) return {ok:false,warn:['Z0e must exceed Z0o > 0']};
+  const Zm=Math.sqrt(Z0e*Z0o), lr=Math.log(Z0e/Z0o), kT=(Z0e-Z0o)/(Z0e+Z0o);
+  const L=Math.log;
+  let u,g,a;
+  if(opts.fixedWh){                      // uniform width: gap alone sets coupling coefficient k
+    u=opts.fixedWh;
+    const r=bisect(lg=>{const A=coupledMsAnalyze(u,Math.exp(lg),er);return (A.Z0e-A.Z0o)/(A.Z0e+A.Z0o)-kT;},L(gMin),L(G_MAX));
+    g=Math.exp(r.x); if(r.clamp==='lo') warn.push('gap limited to '+sMin+' mm: coupling too tight');
+  } else {
+    // fast path: damped Newton in (ln u, ln g); falls back to nested bisection
+    const F=(x,y)=>{const A=coupledMsAnalyze(Math.exp(x),Math.exp(y),er);return [0.5*L(A.Z0e*A.Z0o)-L(Zm), L(A.Z0e/A.Z0o)-lr];};
+    let x=bisect(lu=>msZ0HJ(Math.exp(lu),er)-Zm,L(U_MIN),L(U_MAX),40).x, y=L(0.5), conv=false;
+    const xlo=L(U_MIN),xhi=L(U_MAX),ylo=L(gMin),yhi=L(G_MAX);
+    for(let it=0;it<40&&!conv;it++){
+      const f=F(x,y); if(Math.abs(f[0])<1e-11&&Math.abs(f[1])<1e-11){conv=true;break;}
+      const d=1e-6, fx=F(x+d,y), fy=F(x,y+d);
+      const a11=(fx[0]-f[0])/d,a21=(fx[1]-f[1])/d,a12=(fy[0]-f[0])/d,a22=(fy[1]-f[1])/d, det=a11*a22-a12*a21;
+      if(!Number.isFinite(det)||Math.abs(det)<1e-14) break;
+      let dx=-( a22*f[0]-a12*f[1])/det, dy=-(-a21*f[0]+a11*f[1])/det;
+      const sc=Math.min(1,0.7/Math.max(Math.abs(dx),Math.abs(dy))); dx*=sc; dy*=sc;
+      x=Math.min(xhi,Math.max(xlo,x+dx)); y=Math.min(yhi,Math.max(ylo,y+dy));
+    }
+    let r={clamp:null}, ur={clamp:null};
+    if(conv && y>ylo && y<yhi && x>xlo && x<xhi){ u=Math.exp(x); g=Math.exp(y); }
+    else {
+      const uOf=gg=>{const q=bisect(lu=>{const A=coupledMsAnalyze(Math.exp(lu),gg,er);return Math.sqrt(A.Z0e*A.Z0o)-Zm;},xlo,xhi,40);return {u:Math.exp(q.x),clamp:q.clamp};};
+      r=bisect(lg=>{const uu=uOf(Math.exp(lg)).u;const A=coupledMsAnalyze(uu,Math.exp(lg),er);return L(A.Z0e/A.Z0o)-lr;},ylo,yhi,40);
+      g=Math.exp(r.x); ur=uOf(g); u=ur.u;
+    }
+    if(r.clamp==='lo') warn.push('needs s < '+sMin+' mm: coupling too tight for edge-coupled microstrip (reduce BW, raise order, or use a thinner/lower-er substrate)');
+    if(r.clamp==='hi') warn.push('coupling so weak that s > 10h');
+    if(ur.clamp) warn.push('W/h out of range ['+U_MIN+','+U_MAX+']');
+  }
+  a=coupledMsAnalyze(u,g,er);
+  if(u<0.1||u>10||g<0.1) warn.push('outside Kirschning-Jansen fitted range (0.1<=W/h<=10, s/h>=0.1): verify in EM');
+  const errE=a.Z0e/Z0e-1, errO=a.Z0o/Z0o-1;
+  if(Math.max(Math.abs(errE),Math.abs(errO))>0.005 && !opts.fixedWh) warn.push('targets not met: Z0e '+(errE*100).toFixed(1)+'%, Z0o '+(errO*100).toFixed(1)+'%');
+  let len=NaN;
+  if(opts.f0Hz){
+    const sq=(Math.sqrt(a.eeffE)+Math.sqrt(a.eeffO))/2;      // mean of the two mode phase constants
+    len=299792458/(4*opts.f0Hz*sq)*1000;
+    if(opts.openEnd) len-=msOpenEndDl(u,er)*h;
+  }
+  return {ok:true,W_mm:u*h,s_mm:g*h,L_mm:len,Wh:u,sh:g,Z0e_a:a.Z0e,Z0o_a:a.Z0o,eeffE:a.eeffE,eeffO:a.eeffO,warn};
+}
+
+/* ================= realised-network responses =================
+   The plotted curve is the lumped ladder. These evaluate what the drawn
+   distributed networks actually do, so the notes can quote real numbers. */
+const IDENT=()=>[[cx(1,0),cx(0,0)],[cx(0,0),cx(1,0)]];
+function ueABCD(Z,th){ const c=Math.cos(th), s=Math.sin(th); return [[cx(c,0),cx(0,Z*s)],[cx(0,s/Z),cx(c,0)]]; }
+const s21dB=(M,Z0,ZL)=>20*Math.log10(Math.max(cabs(ABCDtoS(M,Z0,ZL).S21),1e-12));
+// Kuroda stub network: every line and open stub is 45 deg at fc
+function stubNetS21dB(stages, fcHz, Z0, ZL, f){
+  const th=Math.PI/4*f/fcHz; let M=IDENT();
+  for(const s of stages) M=matmul(M, s.type==='ue' ? ueABCD(s.Z,th) : shuntY(Math.tan(th)/s.Z));
+  return s21dB(M,Z0,ZL);
+}
+// stepped-impedance cascade: each section is a real line of its own theta at fc
+function steppedS21dB(secs, fcHz, Z0, ZL, f){
+  let M=IDENT();
+  for(const s of secs) M=matmul(M, ueABCD(s.Z, s.thetaDeg*Math.PI/180*f/fcHz));
+  return s21dB(M,Z0,ZL);
+}
+function lumpedS21dB(elements, Z0, ZL, f){ return response(elements,Z0,ZL,[f])[0].s21db; }
+// worst insertion loss of fn(f) over [f1,f2]
+function worstLossDb(fn, f1, f2, n){ n=n||400; let m=0; for(let i=0;i<=n;i++){ const v=-fn(f1+(f2-f1)*i/n); if(v>m) m=v; } return m; }
+// ideal parallel-coupled section, ports on opposite ends of the two strips, other ends open
+function cplABCD(Ze,Zo,th){
+  const ct=1/Math.tan(th), cs=1/Math.sin(th);
+  const Z11=cx(0,-0.5*(Ze+Zo)*ct), Z13=cx(0,-0.5*(Ze-Zo)*cs);
+  const A=cdiv(Z11,Z13), Cm=cdiv(cx(1,0),Z13);
+  const B=cdiv(cadd(cmul(Z11,Z11),cscale(cmul(Z13,Z13),-1)),Z13);
+  return [[A,B],[Cm,A]];
+}
+function coupledNetS21dB(sections, f0Hz, Z0, f){
+  const th=Math.PI/2*f/f0Hz; let M=IDENT();
+  for(const s of sections) M=matmul(M, cplABCD(s.Z0e,s.Z0o,th));
+  return s21dB(M,Z0,Z0);
 }
 
 /* ================= state ================= */
 const PRESETS={ro4003c:{name:'Rogers RO4003C',er:3.55,h:1.524}, fr4:{name:'FR-4',er:4.4,h:1.6}, duroid5880:{name:'RT/duroid 5880',er:2.2,h:1.575}, air:{name:'Air / foam',er:1.06,h:3.0}};
 let presetKey='ro4003c';
-const st={filterType:'lowpass', poly:'butterworth', rippleDb:0.5, N:3, fc:2.4, bwPct:10, er:3.55, h:1.524, Z0:50, axis:'auto', xsec:0, cw:'uniform'};
+const st={filterType:'lowpass', poly:'butterworth', rippleDb:0.5, N:3, fc:2.4, bwPct:10, er:3.55, h:1.524, Z0:50, axis:'auto', xsecKey:'Feed line', cw:'uniform'};
 
 function fmt(v,d){ return v.toFixed(d); }
+// widths below 10 um would round to "0.00": keep two significant figures instead
+function fmtW(mm){ return mm>=0.01 ? mm.toFixed(2) : mm.toPrecision(2); }
+// component values to 3 significant figures: never "0.00 pF"
+function sig3(x){ const a=Math.abs(x); return a>=100 ? x.toFixed(0) : a>=1e-3 ? x.toPrecision(3) : x.toExponential(2); }
+const pFtxt=C_=>sig3(C_*1e12)+' pF', nHtxt=L_=>sig3(L_*1e9)+' nH';
 
 /* ================= diagrams ================= */
 
@@ -405,10 +597,10 @@ function svgCaption(text, x, y, maxWpx, size, fill){
 function ladderSVG(elements, Z0, ZL){
   const n=elements.length;
   const dx=Math.max(92, Math.min(140, Math.round(1000/(n+1))));
-  const xL=48, xR=xL+dx*(n+1), W=xR+48, yMid=74, Hh=192;
+  const xL=48, xR=xL+dx*(n+1), W=xR+60, yMid=74, Hh=192;
   const WIRE='#7d97a4', SER='#4cc3ff', SHU='#ff5f96', AMB='#ffb454', P='#101c25';
   const mismatched=Math.abs(ZL-Z0)>0.5;
-  const nH=v=>(v*1e9).toFixed(2)+' nH', pF=v=>(v*1e12).toFixed(2)+' pF';
+  const nH=nHtxt, pF=pFtxt;
   const wire=(x1,y1,x2,y2)=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${WIRE}" stroke-width="1.5" stroke-linecap="round"/>`;
   const gnd=(x,y,c)=>`<line x1="${x-10}" y1="${y}" x2="${x+10}" y2="${y}" stroke="${c}" stroke-width="1.6"/>
     <line x1="${x-6}" y1="${y+4}" x2="${x+6}" y2="${y+4}" stroke="${c}" stroke-width="1.6"/>
@@ -429,7 +621,7 @@ function ladderSVG(elements, Z0, ZL){
     <text x="${x}" y="${yMid+90}" text-anchor="middle" font-size="11" fill="${c}">${label}</text>`;
   s+=term(xL,'Zs = '+Z0.toFixed(0)+' Ω',WIRE);
   s+=term(xR,'RL = '+ZL.toFixed(1)+' Ω',mismatched?AMB:WIRE);
-  if(mismatched) s+=`<text x="${xR}" y="${yMid+104}" text-anchor="middle" font-size="9.5" fill="${AMB}">gₙ₊₁·Z₀ — not 50 Ω</text>`;
+  if(mismatched) s+=`<text x="${xR}" y="${yMid+104}" text-anchor="middle" font-size="9.5" fill="${AMB}">gₙ₊₁·Z₀ — not ${Z0.toFixed(0)} Ω</text>`;
 
   // ---- spine, broken where series elements sit ----
   let cuts=[];
@@ -470,10 +662,14 @@ function ladderSVG(elements, Z0, ZL){
         art=`${wire(cxp,yMid,cxp,yMid+24)}${coilV(yMid+24,yMid+56,cxp,4,SHU)}`;
         gy=yMid+56; lines=[nH(el.L)];
       } else {
-        art=`${wire(cxp,yMid,cxp,yMid+22)}
-          <line x1="${cxp-13}" y1="${yMid+22}" x2="${cxp+13}" y2="${yMid+22}" stroke="${SHU}" stroke-width="2"/>
-          <line x1="${cxp-13}" y1="${yMid+31}" x2="${cxp+13}" y2="${yMid+31}" stroke="${SHU}" stroke-width="2"/>
-          ${coilV(yMid+31,yMid+59,cxp,3,SHU)}`;
+        // parallel L||C tank to ground: Y = jwC + 1/(jwL)
+        art=`${wire(cxp,yMid,cxp,yMid+16)}${wire(cxp-10,yMid+16,cxp+10,yMid+16)}
+          ${wire(cxp-10,yMid+16,cxp-10,yMid+31)}
+          <line x1="${cxp-19}" y1="${yMid+31}" x2="${cxp-1}" y2="${yMid+31}" stroke="${SHU}" stroke-width="2"/>
+          <line x1="${cxp-19}" y1="${yMid+38}" x2="${cxp-1}" y2="${yMid+38}" stroke="${SHU}" stroke-width="2"/>
+          ${wire(cxp-10,yMid+38,cxp-10,yMid+52)}
+          ${wire(cxp+10,yMid+16,cxp+10,yMid+22)}${coilV(yMid+22,yMid+46,cxp+10,3,SHU)}${wire(cxp+10,yMid+46,cxp+10,yMid+52)}
+          ${wire(cxp-10,yMid+52,cxp+10,yMid+52)}${wire(cxp,yMid+52,cxp,yMid+59)}`;
         gy=yMid+59; lines=[nH(el.L),pF(el.C)];
       }
       s+=`<circle cx="${cxp}" cy="${yMid}" r="2.8" fill="${WIRE}"/>`+art+gnd(cxp,gy,WIRE)
@@ -494,11 +690,18 @@ function chartSVG(resp, fLo, fHi, markers, opts){
   const X=f=>padL+w*(f-fLo)/(fHi-fLo);
   const Y=db=>padT+h*(dbHi-Math.max(dbLo,Math.min(dbHi,db)))/(dbHi-dbLo);
   let grid='';
-  const nDiv=opts.fDiv||6;
-  const fStep=(fHi-fLo)/nDiv;
-  for(let i=0;i<=nDiv;i++){
-    const f=fLo+i*fStep, x=X(f);
-    grid+=`<line class="gridline" x1="${x}" y1="${padT}" x2="${x}" y2="${padT+h}"/><text class="axislabel" x="${x}" y="${padT+h+15}" text-anchor="middle">${(f/1e9).toFixed(nDiv===7?0:2)}</text>`;
+  /* Ticks sit on round frequencies, and each label carries just enough
+     decimals for its step - so a label always names the frequency its grid
+     line is actually drawn at (the old fLo + i*span/6 ticks were rounded to
+     2 decimals and could be several pixels off, or repeat). */
+  const spanG=(fHi-fLo)/1e9;
+  let stepG=opts.fStepGHz;
+  if(!stepG){ const raw=spanG/6, mag=Math.pow(10,Math.floor(Math.log10(raw)));
+    stepG=[1,2,2.5,5,10].map(v=>v*mag).reduce((a,b)=>Math.abs(Math.log(b/raw))<Math.abs(Math.log(a/raw))?b:a); }
+  const dec=Math.max(0, Math.ceil(-Math.log10(stepG)-1e-9) + (Math.abs(stepG/Math.pow(10,Math.floor(Math.log10(stepG)+1e-9))-2.5)<1e-6?1:0));
+  for(let k=Math.ceil(fLo/1e9/stepG-1e-9); k*stepG<=fHi/1e9+1e-9; k++){
+    const fG=k*stepG, x=X(fG*1e9);
+    grid+=`<line class="gridline" x1="${x.toFixed(1)}" y1="${padT}" x2="${x.toFixed(1)}" y2="${padT+h}"/><text class="axislabel" x="${x.toFixed(1)}" y="${padT+h+15}" text-anchor="middle">${fG.toFixed(dec)}</text>`;
   }
   const dbStep = dbLo<=-80 ? 20 : 10;
   for(let db=0;db>=dbLo;db-=dbStep){
@@ -508,16 +711,19 @@ function chartSVG(resp, fLo, fHi, markers, opts){
   const refDb = opts.rippleDb ? -opts.rippleDb : -3;
   const refTxt = opts.rippleDb ? ('ripple −'+opts.rippleDb.toFixed(2)+' dB') : '−3 dB';
   const ref=Y(refDb);
-  grid+=`<line class="refline" x1="${padL}" y1="${ref}" x2="${padL+w}" y2="${ref}"/><text class="axislabel" x="${padL+w-2}" y="${ref-4}" text-anchor="end" fill="#ffb454">${refTxt}</text>`;
+  grid+=`<line class="refline" x1="${padL}" y1="${ref}" x2="${padL+w}" y2="${ref}"/>`;
+  const refLbl=`<text class="axislabel" x="${padL+w-2}" y="${ref-4}" text-anchor="end" fill="#ffb454">${refTxt}</text>`;
   const d21=resp.map((r,i)=>(i===0?'M':'L')+X(r.f).toFixed(1)+','+Y(r.s21db).toFixed(1)).join(' ');
   const d11=resp.map((r,i)=>(i===0?'M':'L')+X(r.f).toFixed(1)+','+Y(r.s11db).toFixed(1)).join(' ');
-  let marks='';
+  let marks='', markLbls='';
+  const tight=(markers||[]).length>1 && X(markers[markers.length-1].f)-X(markers[0].f)<28;
   (markers||[]).forEach(m=>{
     const x=X(m.f);
-    marks+=`<line x1="${x}" y1="${padT}" x2="${x}" y2="${padT+h}" stroke="#4f6673" stroke-width="1" stroke-dasharray="2 2"/><text class="axislabel" x="${x}" y="${padT+10}" text-anchor="middle" fill="#7d97a4">${m.label}</text>`;
+    marks+=`<line x1="${x}" y1="${padT}" x2="${x}" y2="${padT+h}" stroke="#4f6673" stroke-width="1" stroke-dasharray="2 2"/>`;
+    markLbls+=`${tight&&m.label!=='f0'?'':`<text class="axislabel" x="${x}" y="${padT+h-5}" text-anchor="middle" fill="#7d97a4">${m.label}</text>`}`;
   });
   return `<svg class="diagram" viewBox="0 0 ${vw} ${vh}" xmlns="http://www.w3.org/2000/svg">
-    ${grid}${marks}<path class="curve21" d="${d21}"/><path class="curve11" d="${d11}"/>
+    ${grid}${marks}<path class="curve21" d="${d21}"/><path class="curve11" d="${d11}"/>${refLbl}${markLbls}
     <text class="axislabel" x="${padL+4}" y="${padT+10}" fill="#4cc3ff">S21 (insertion)</text>
     <text class="axislabel" x="${padL+4}" y="${padT+22}" fill="#ff5f96">S11 (return)</text>
     <text class="axislabel" x="${padL+w/2}" y="${vh-6}" text-anchor="middle" fill="#4f6673">Frequency (GHz)</text>
@@ -554,7 +760,7 @@ function stubSchematicSVG(stages, freqHz){
 }
 
 function coupledLineTLSvg(sections){
-  const n=sections.length, W=Math.max(560,140*n+80), Hh=150;
+  const n=sections.length, W=Math.max(560,100*n+80), Hh=150;
   let out='';
   const x0=40, dx=(W-80)/n;
   sections.forEach((s,i)=>{
@@ -575,6 +781,10 @@ function coupledLineTLSvg(sections){
 function stripLayoutSVG(segments, opts){
   opts=opts||{};
   const feedW = opts.feedW_mm || 1.0;
+  // the OUTPUT feed is drawn at the load impedance the network was designed
+  // into - for an even-order Chebyshev ladder that is gN+1*Z0, not Z0
+  const Z0p = opts.Z0||50, ZLp = opts.ZL||Z0p, mism = Math.abs(ZLp-Z0p)>0.5;
+  const feedWL = mism && opts.feedWL_mm ? opts.feedWL_mm : feedW;
   // keep the feeds in proportion: a 4 mm highpass should not be buried
   // between two 6.5 mm leads
   const _span = segments.reduce((t,g)=>t + (g.type==='stub' ? 0
@@ -615,14 +825,15 @@ function stripLayoutSVG(segments, opts){
         grow(xs[i], Yc[i]-sg.W_mm/2, sg.L_mm, sg.W_mm); }
       // interior strips are the half-wave resonators; the two ends are the
       // quarter-wave I/O sections
-      if(i>0 && i<n) labels.push({res:true, x:xs[i], y:Yc[i], idx:i, txt:`λ/2 resonator ${i}`});
-      if(i===0)      labels.push({res:true, x:xs[0]+segments[0].L_mm/2, y:Yc[0], idx:0, txt:'λ/4 input'});
-      if(i===n)      labels.push({res:true, x:xs[n-1]+segments[n-1].L_mm/2, y:Yc[n], idx:n, txt:'λ/4 output'});
+      const hmm=Math.min(i>0?segments[i-1].W_mm:1e9, i<n?segments[i].W_mm:1e9);
+      if(i>0 && i<n) labels.push({res:true, x:xs[i], y:Yc[i], idx:i, hmm, lmm:segments[i-1].L_mm+segments[i].L_mm, txt:`λ/2 resonator ${i}`});
+      if(i===0)      labels.push({res:true, x:xs[0]+segments[0].L_mm/2, y:Yc[0], idx:0, hmm, lmm:segments[0].L_mm, txt:'λ/4 input'});
+      if(i===n)      labels.push({res:true, x:xs[n-1]+segments[n-1].L_mm/2, y:Yc[n], idx:n, hmm, lmm:segments[n-1].L_mm, txt:'λ/4 output'});
     }
     segments.forEach((sg,i)=>{
       labels.push({region:true, x:xs[i]+sg.L_mm/2, y:Yc[i], idx:i,
                    ygap:(Yc[i]+Yc[i+1])/2,
-                   lines:[`coupled region ${i+1}`, `s≈${sg.s_mm.toFixed(2)} mm`]});
+                   lines:[`coupled region ${i+1}`, `s = ${sg.s_mm.toFixed(3)} mm`]});
     });
     // feeds, centred on the two quarter-wave end strips
     shapes.unshift({x:-feedL, y:Yc[0]-feedW/2, w:feedL, h:feedW, c:COP, s:COP2});
@@ -658,32 +869,46 @@ function stripLayoutSVG(segments, opts){
         if(sg.shorted){ overlays.push({kind:'via', x, y:sg.L_mm, r:Math.max(0.3, sg.W_mm*0.33)}); }
         labels.push({x, y:sg.L_mm, below:true, idx:stubIdx++,
                      dim:{kind:'stub', xj:x, halfW:sg.W_mm/2, len:sg.L_mm},
-                     lines:[`W=${sg.W_mm.toFixed(2)} mm`,`l=${sg.L_mm.toFixed(2)} mm`]});
+                     lines:[`W=${fmtW(sg.W_mm)} mm`,`l=${sg.L_mm.toFixed(2)} mm`]});
       } else {
         shapes.push({x, y:-sg.W_mm/2, w:sg.L_mm, h:sg.W_mm, c:COP, s:COP2});
         grow(x,-sg.W_mm/2,sg.L_mm,sg.W_mm);
         labels.push({x:x+sg.L_mm/2, y:-sg.W_mm/2, above:true, idx:0,
                      dim:{kind:'line', x0:x, x1:x+sg.L_mm},
-                     lines:[`W=${sg.W_mm.toFixed(2)} mm`,`l=${sg.L_mm.toFixed(2)} mm`]});
+                     lines:[`W=${fmtW(sg.W_mm)} mm`,`l=${sg.L_mm.toFixed(2)} mm`]});
         x+=sg.L_mm;
       }
     });
-    shapes.push({x, y:-feedW/2, w:feedL, h:feedW, c:COP, s:COP2});
-    grow(x,-feedW/2,feedL,feedW);
+    shapes.push({x, y:-feedWL/2, w:feedL, h:feedWL, c:COP, s:COP2});
+    grow(x,-feedWL/2,feedL,feedWL);
   }
 
   /* ---- one scale for both axes: the picture is now true to the board ---- */
   const mgn=2.0;                                   // mm of substrate around the copper
   const bw=(xmax-xmin)+2*mgn, bh=(ymax-ymin)+2*mgn;
-  const padT=coupled?30:78, padB=coupled?98:98, padL=18, padR=18;
+  let padT=coupled?30:78, padB=111; const padL=18, padR=18;
   const availW=660-padL-padR;
   let k=availW/bw;                                 // px per mm
   if(bh*k>300) k=300/bh;
-  const Wpx=Math.max(bw*k+padL+padR, 560), Hpx=bh*k+padT+padB;
-  const X=mm=>padL+(mm-xmin+mgn)*k, Y=mm=>padT+(mm-ymin+mgn)*k;
+  const Wpx=Math.max(bw*k+padL+padR, 560);
+  const ox=padL+(Wpx-padL-padR-bw*k)/2;            // centre a narrow board
+  const X=mm=>ox+(mm-xmin+mgn)*k;
+  /* pack label rows before the vertical padding is fixed (x does not depend on padT) */
+  const estW=lines=>Math.max(...lines.map(t=>t.length))*9.5*0.62+10;
+  const pack=items=>{const ends=[]; items.forEach(it=>{let r=0; while(r<ends.length && ends[r]>it.x-it.w/2) r++; ends[r]=it.x+it.w/2; it.row=r;}); return ends.length;};
+  const clampX=(x,m)=>Math.max(ox+m, Math.min(ox+bw*k-m, x));
+  const topItems = coupled?[]:labels.filter(L=>!L.below && L.dim).sort((u,v)=>u.x-v.x)
+        .map(L=>({L, x:clampX((X(L.dim.x0)+X(L.dim.x1))/2,44), w:estW(L.lines)}));
+  const botItems = labels.filter(L=>coupled?L.region:(L.below && L.dim)).sort((u,v)=>u.x-v.x)
+        .map(L=>({L, x:clampX(X(L.dim?L.dim.xj:L.x), coupled?52:44), w:estW(L.lines)}));
+  const nTop=pack(topItems), nBot=Math.max(2,pack(botItems));
+  if(!coupled) padT = 30 + Math.max(1,nTop)*30;
+  padB = 63 + nBot*24;
+  const Hpx=bh*k+padT+padB;
+  const Y=mm=>padT+(mm-ymin+mgn)*k;
 
   let drawCopper=()=>{};
-  let out=`<rect x="${padL}" y="${padT}" width="${bw*k}" height="${bh*k}" fill="${BOARD}" stroke="${EDGE}" stroke-width="1.5" rx="2"/>`;
+  let out=`<rect x="${ox}" y="${padT}" width="${bw*k}" height="${bh*k}" fill="${BOARD}" stroke="${EDGE}" stroke-width="1.5" rx="2"/>`;
   {
     // the feed, lines and stubs are one continuous conductor. Draw every rect
     // slightly oversized in the edge colour, then again at true size in copper:
@@ -708,13 +933,17 @@ function stripLayoutSVG(segments, opts){
     // everything textual is held back until after the copper is re-laid
     let crow=0, clast=-1e9, leaders='', texts='';
     labels.filter(L=>L.res).forEach(L=>{
-      texts+=`<text x="${X(L.x).toFixed(2)}" y="${(Y(L.y)+3.5).toFixed(2)}" text-anchor="middle" font-size="9.5" font-weight="600" fill="#5a4211">${L.txt}</text>`;
+      // only letter a strip the text actually fits in; fall back to a short tag, else nothing
+      const hpx=L.hmm*k, lpx=L.lmm*k, nS=segments.length;
+      const t = (L.txt.length*5.9+8<lpx) ? L.txt : (L.idx===0?'in':L.idx===nS?'out':'R'+L.idx);
+      if(hpx<8 || t.length*5.9+4>lpx) return;
+      const fs=Math.min(9.5, hpx-1.5);
+      texts+=`<text x="${X(L.x).toFixed(2)}" y="${(Y(L.y)+fs*0.36).toFixed(2)}" text-anchor="middle" font-size="${fs.toFixed(1)}" font-weight="600" fill="#5a4211">${t}</text>`;
     });
     // region callouts go BELOW the board, where the staircase leaves room;
     // above the board they collided with the port labels
-    labels.filter(L=>L.region).forEach(L=>{
-      const xg=X(L.x), tx=Math.max(padL+52, Math.min(padL+bw*k-52, xg));
-      crow = (tx-clast < 130) ? 1-crow : 0; clast=tx;
+    botItems.forEach(({L, x:tx, row:crow})=>{
+      const xg=X(L.x);
       const ty=padT+bh*k+18+crow*24;
       leaders+=`<line x1="${xg.toFixed(2)}" y1="${Y(L.ygap).toFixed(2)}" x2="${tx.toFixed(2)}" y2="${(ty-10).toFixed(2)}" stroke="${DIM}" stroke-width="0.7" opacity="0.8"/>`;
       leaders+=`<circle cx="${xg.toFixed(2)}" cy="${Y(L.ygap).toFixed(2)}" r="1.8" fill="${DIM}"/>`;
@@ -738,28 +967,24 @@ function stripLayoutSVG(segments, opts){
 
     // horizontal dimensions: junction plane to junction plane
     let arow=0, alastX=-1e9;
-    labels.filter(L=>!L.below && L.dim).sort((u,v)=>u.x-v.x).forEach(L=>{
-      const xa=X(L.dim.x0), xb=X(L.dim.x1), xm=(xa+xb)/2;
-      arow = (xm-alastX < 118) ? 1-arow : 0; alastX=xm;
-      const barY = topY - 12 - arow*30;
+    topItems.forEach(({L, x:tx, row:arow})=>{
+      const xa=X(L.dim.x0), xb=X(L.dim.x1);
+      const barY = Math.min(topY-12, padT-10) - arow*30;
       out+=`<line x1="${xa.toFixed(2)}" y1="${(barY-4).toFixed(2)}" x2="${xa.toFixed(2)}" y2="${cl.toFixed(2)}" stroke="${DIM}" stroke-width="0.6" stroke-dasharray="3 3" opacity="0.6"/>`;
       out+=`<line x1="${xb.toFixed(2)}" y1="${(barY-4).toFixed(2)}" x2="${xb.toFixed(2)}" y2="${cl.toFixed(2)}" stroke="${DIM}" stroke-width="0.6" stroke-dasharray="3 3" opacity="0.6"/>`;
       out+=`<line x1="${xa.toFixed(2)}" y1="${barY.toFixed(2)}" x2="${xb.toFixed(2)}" y2="${barY.toFixed(2)}" stroke="${DIM}" stroke-width="1.1"/>`;
       out+=tick(xa,barY,0,4)+tick(xb,barY,0,4);
-      const tx=Math.max(padL+44, Math.min(padL+bw*k-44, xm));
       out+=`<text x="${tx.toFixed(2)}" y="${(barY-18).toFixed(2)}" text-anchor="middle" font-size="9.5" fill="${TXT}">${
         L.lines.map((t,i)=>`<tspan x="${tx.toFixed(2)}" dy="${i?11:0}">${t}</tspan>`).join('')}</text>`;
     });
 
     // vertical dimensions: centreline to open end
     let brow=0, blastTx=-1e9;
-    labels.filter(L=>L.below && L.dim).sort((u,v)=>u.x-v.x).forEach(L=>{
+    botItems.forEach(({L, x:tx, row:brow})=>{
       const xj=X(L.dim.xj), xD=xj+L.dim.halfW*k+10, yEnd=Y(L.dim.len);
       out+=`<line x1="${xD.toFixed(2)}" y1="${cl.toFixed(2)}" x2="${xD.toFixed(2)}" y2="${yEnd.toFixed(2)}" stroke="${DIM}" stroke-width="1.1"/>`;
       out+=tick(xD,cl,4,0)+tick(xD,yEnd,4,0);
       out+=`<line x1="${(xj+L.dim.halfW*k).toFixed(2)}" y1="${yEnd.toFixed(2)}" x2="${xD.toFixed(2)}" y2="${yEnd.toFixed(2)}" stroke="${DIM}" stroke-width="0.6" stroke-dasharray="3 3" opacity="0.6"/>`;
-      const tx=Math.max(padL+44, Math.min(padL+bw*k-44, xj));
-      brow = (tx-blastTx < 120) ? 1-brow : 0; blastTx=tx;
       const ty=padT+bh*k+18+brow*24;
       out+=`<line x1="${xj.toFixed(2)}" y1="${(yEnd+2).toFixed(2)}" x2="${tx.toFixed(2)}" y2="${(ty-10).toFixed(2)}" stroke="${DIM}" stroke-width="0.6" opacity="0.5"/>`;
       out+=`<text x="${tx.toFixed(2)}" y="${ty}" text-anchor="middle" font-size="9.5" fill="${TXT}">${
@@ -768,20 +993,25 @@ function stripLayoutSVG(segments, opts){
   }
 
   /* ---- ports, on the header line so they never sit on the copper ---- */
-  const fw=`${opts.Z0||50} Ω feed, W = ${feedW.toFixed(3)} mm`;
-  out+=`<text x="${padL}" y="${padT-9}" font-size="9.5" fill="${DIM}">${fw} ▸</text>`;
-  out+=`<text x="${(padL+bw*k).toFixed(2)}" y="${padT-9}" text-anchor="end" font-size="9.5" fill="${DIM}">▸ ${fw}</text>`;
+  const fw=`${Z0p} Ω feed, W = ${feedW.toFixed(3)} mm`;
+  const fwL= mism ? `${ZLp.toFixed(1)} Ω port, W = ${feedWL.toFixed(3)} mm` : fw;
+  const portY = coupled ? padT-9 : 14;
+  out+=`<text x="${padL}" y="${portY}" font-size="9.5" fill="${DIM}">${fw} ▸</text>`;
+  out+=`<text x="${Wpx-padR}" y="${portY}" text-anchor="end" font-size="9.5" fill="${mism?'#ffb454':DIM}">▸ ${fwL}</text>`;
 
   /* ---- scale bar + footprint, so the drawing can be trusted ---- */
   const nice=[1,2,5,10,20,50].find(v=>v*k>52)||50;
-  const sbY=padT+bh*k+74, sbX=padL+2;
+  const sbY=padT+bh*k+26+nBot*24, sbX=padL+2;
   out+=`<line x1="${sbX}" y1="${sbY}" x2="${sbX+nice*k}" y2="${sbY}" stroke="${DIM}" stroke-width="1.5"/>
     <line x1="${sbX}" y1="${sbY-4}" x2="${sbX}" y2="${sbY+4}" stroke="${DIM}" stroke-width="1.5"/>
     <line x1="${sbX+nice*k}" y1="${sbY-4}" x2="${sbX+nice*k}" y2="${sbY+4}" stroke="${DIM}" stroke-width="1.5"/>
     <text x="${sbX+nice*k/2}" y="${sbY+15}" text-anchor="middle" font-size="9.5" fill="${DIM}">${nice} mm</text>`;
-  const xR2=(padL+bw*k).toFixed(2);
-  out+=`<text x="${xR2}" y="${sbY-4}" text-anchor="end" font-size="9.5" fill="${DIM}">drawn to scale at ${k.toFixed(1)} px/mm  ·  copper ${(xmax-xmin).toFixed(1)} × ${(ymax-ymin).toFixed(1)} mm</text>`;
-  if(opts.er) out+=`<text x="${xR2}" y="${sbY+9}" text-anchor="end" font-size="9.5" fill="${DIM}">εr = ${opts.er.toFixed(2)}, h = ${opts.h.toFixed(3)} mm</text>`;
+  const xR2=(Wpx-padR).toFixed(2);
+  // the strips, pads and gaps share one px/mm scale, but vias, chip bodies and
+  // hairline strips are given a minimum on-screen size so they stay visible
+  out+=`<text x="${xR2}" y="${sbY-4}" text-anchor="end" font-size="9.5" fill="${DIM}">primary geometry drawn to scale at ${k.toFixed(1)} px/mm</text>`;
+  out+=`<text x="${xR2}" y="${sbY+9}" text-anchor="end" font-size="9.5" fill="${DIM}">very small features are shown at a minimum display size</text>`;
+  out+=`<text x="${xR2}" y="${sbY+22}" text-anchor="end" font-size="9.5" fill="${DIM}">copper ${(xmax-xmin).toFixed(1)} × ${(ymax-ymin).toFixed(1)} mm${opts.er?`  ·  εr = ${opts.er.toFixed(2)}, h = ${opts.h.toFixed(3)} mm`:''}</text>`;
 
   return `<svg class="diagram" viewBox="0 0 ${Wpx.toFixed(0)} ${Hpx.toFixed(0)}" xmlns="http://www.w3.org/2000/svg">${out}</svg>`;
 }
@@ -811,7 +1041,7 @@ function steppedTLSvg(secs, Zh, Zl){
   secs.forEach((sc,i)=>{
     const x=48+dx*i, hgt=sc.kind==='L'?11:34, c=sc.kind==='L'?HI:LO;
     o+=`<rect x="${x}" y="${yMid-hgt/2}" width="${dx-10}" height="${hgt}" rx="2" fill="${c}" opacity="0.22" stroke="${c}" stroke-width="1.3"/>`;
-    o+=`<text x="${x+(dx-10)/2}" y="${yMid-30}" text-anchor="middle" font-size="10" fill="${c}"><tspan x="${x+(dx-10)/2}">${sc.kind==='L'?'high-Z':'low-Z'}</tspan><tspan x="${x+(dx-10)/2}" dy="12">${sc.Z.toFixed(0)} Ω</tspan></text>`;
+    o+=`<text x="${x+(dx-10)/2}" y="${yMid-34}" text-anchor="middle" font-size="10" fill="${c}"><tspan x="${x+(dx-10)/2}">${sc.kind==='L'?'high-Z':'low-Z'}</tspan><tspan x="${x+(dx-10)/2}" dy="12">${sc.Z.toFixed(0)} Ω</tspan></text>`;
     o+=`<text x="${x+(dx-10)/2}" y="${yMid+44}" text-anchor="middle" font-size="10" fill="${WIRE}"><tspan x="${x+(dx-10)/2}">θ = ${sc.thetaDeg.toFixed(1)}°</tspan><tspan x="${x+(dx-10)/2}" dy="12">≈ ${sc.kind==='L'?'series L':'shunt C'}</tspan></text>`;
   });
   const cap=svgCaption(`A short line of high Z₀ acts as a series inductor, a short line of low Z₀ as a shunt capacitor. Zh = ${Zh} Ω and Zl = ${Zl} Ω are set by what the etcher can hold.`, 14, 0, W-28, 9.5);
@@ -820,34 +1050,61 @@ function steppedTLSvg(secs, Zh, Zl){
 }
 
 /* Semi-lumped highpass realisation.
-   Richard's + Kuroda cannot do a highpass (the identities that would convert a
-   series OPEN stub into a shunt SHORT stub need an ideal transformer, which
-   microstrip has no way to build). The practical microstrip form is semi-lumped:
-     shunt L  -> short-circuited high-Z stub, EXACT at fc:
-                 Zin = j*Zh*tan(theta)  =>  theta = atan(w*L/Zh)
+   Why not Richard's + Kuroda for THIS ladder: Richard's transformation maps the
+   lumped highpass ladder onto SERIES open stubs (from the series C) and shunt
+   short stubs (from the shunt L). No Kuroda identity turns a series open stub
+   into a shunt one - the transformer-type identities only move it across a
+   unit element, where it is still in series - and a series stub cannot be
+   built in microstrip. The mapped response is also periodic: with 45 deg at
+   fc it really is a fc-3fc bandpass. Distributed highpass filters do exist
+   (e.g. shorted-stub / unit-element designs synthesised directly in the
+   Richards domain), but that is a different synthesis; for this tool's
+   topology the practical microstrip form is semi-lumped:
+     shunt L  -> short-circuited high-Z stub + its via, EXACT at fc:
+                 Zin = j(Zh*tan(theta) + w*Lvia)  =>  theta = atan((wL - wLvia)/Zh)
      series C -> a gap in the line carrying a chip capacitor, because a line
                  section cannot produce series capacitance of this size.
    The stub is exact at fc and drifts away from it (tan theta vs a linear wL);
    the capacitors are whatever part you mount. */
-function semiLumpedHighpass(elements, Zh, fcHz){
-  const w=2*Math.PI*fcHz;
+/* Via inductance (Goldfarb & Pucel 1991), h and r in mm -> H */
+function viaInductance(h_mm, r_mm){
+  const h=h_mm/1000, r=r_mm/1000, s=Math.sqrt(r*r+h*h);
+  return 2e-7*(h*Math.log((h+s)/r) + 1.5*(r-s));
+}
+function semiLumpedHighpass(elements, Zh, fcHz, Lvia){
+  const w=2*Math.PI*fcHz; Lvia=Lvia||0;
   return elements.map(el=>{
     if(el.kind==='seriesC') return {kind:'C', C:el.C};
-    return {kind:'L', L:el.L, Z:Zh, thetaDeg: Math.atan(w*el.L/Zh)*180/Math.PI};
+    const Xline=Math.max(w*el.L - w*Lvia, 1e-3*w*el.L);      // the via supplies part of L
+    return {kind:'L', L:el.L, Z:Zh, thetaDeg: Math.atan(Xline/Zh)*180/Math.PI, Lvia, viaLimited: w*Lvia>=w*el.L*(1-1e-3)};
   });
+}
+/* |S21| of the realised network: ideal chip caps + shorted Zh stubs (+ via L) */
+function semiLumpedS21dB(secs, Zh, fcHz, Z0, ZL, f){
+  const w=2*Math.PI*f; let M=IDENT();
+  for(const s of secs){
+    if(s.kind==='C') M=matmul(M,seriesZ(-1/(w*s.C)));
+    else { const th=s.thetaDeg*Math.PI/180*f/fcHz;
+           M=matmul(M,shuntY(-1/(Zh*Math.tan(th) + w*(s.Lvia||0)))); }
+  }
+  return s21dB(M,Z0,ZL);
 }
 function semiLumpedTLSvg(secs, Zh){
   const n=secs.length, dx=Math.max(96, Math.min(140, Math.round(940/n)));
   const W=Math.max(560, dx*n+96), yMid=74, Hh=206;
   const CAP='#4cc3ff', STB='#ff5f96', WIRE='#7d97a4', VIA='#d9a441';
-  let o=`<line x1="30" y1="${yMid}" x2="${W-30}" y2="${yMid}" stroke="${WIRE}" stroke-width="1.5"/>`;
+  // the through wire is BROKEN at every capacitor: line -> plate | plate -> line.
+  // A continuous wire under the symbol would draw each capacitor shorted out.
+  let o='', wx=30;
+  secs.forEach((sc,i)=>{ if(sc.kind==='C'){ const cxp=52+dx*i+(dx-12)/2;
+    o+=`<line x1="${wx}" y1="${yMid}" x2="${cxp-4}" y2="${yMid}" stroke="${WIRE}" stroke-width="1.5"/>`; wx=cxp+4; } });
+  o+=`<line x1="${wx}" y1="${yMid}" x2="${W-30}" y2="${yMid}" stroke="${WIRE}" stroke-width="1.5"/>`;
   secs.forEach((sc,i)=>{
     const x=52+dx*i, cxp=x+(dx-12)/2;
     if(sc.kind==='C'){
-      o+=`<rect x="${x}" y="${yMid-14}" width="${dx-12}" height="28" rx="2" fill="${CAP}" opacity="0.14" stroke="${CAP}" stroke-width="1.3"/>`;
       o+=`<line x1="${cxp-4}" y1="${yMid-11}" x2="${cxp-4}" y2="${yMid+11}" stroke="${CAP}" stroke-width="2"/>`;
       o+=`<line x1="${cxp+4}" y1="${yMid-11}" x2="${cxp+4}" y2="${yMid+11}" stroke="${CAP}" stroke-width="2"/>`;
-      o+=`<text x="${cxp}" y="${yMid-24}" text-anchor="middle" font-size="10" fill="${CAP}"><tspan x="${cxp}">chip cap</tspan><tspan x="${cxp}" dy="12">${(sc.C*1e12).toFixed(2)} pF</tspan></text>`;
+      o+=`<text x="${cxp}" y="${yMid-32}" text-anchor="middle" font-size="10" fill="${CAP}"><tspan x="${cxp}">chip cap</tspan><tspan x="${cxp}" dy="12">${pFtxt(sc.C)}</tspan></text>`;
     } else {
       o+=`<circle cx="${cxp}" cy="${yMid}" r="2.6" fill="${WIRE}"/>`;
       o+=`<line x1="${cxp}" y1="${yMid}" x2="${cxp}" y2="${yMid+40}" stroke="${STB}" stroke-width="3"/>`;
@@ -857,7 +1114,7 @@ function semiLumpedTLSvg(secs, Zh){
       o+=`<text x="${cxp+12}" y="${yMid+50}" font-size="9.5" fill="${VIA}">via</text>`;
     }
   });
-  const cap=svgCaption(`Shunt inductors become short-circuited ${Zh} Ω stubs with a via to ground — exact at fc, since Zin = jZh·tanθ. Series capacitors need a gap: no line section makes series C of this size, so they are mounted parts.`, 14, 0, W-28, 9.5);
+  const cap=svgCaption(`Shunt inductors become short-circuited ${Zh} Ω stubs with a via to ground — exact at fc, since Zin = j(Zh·tanθ + ωLvia). Series capacitors need a gap: no line section makes series C of this size, so they are mounted parts.`, 14, 0, W-28, 9.5);
   return `<svg class="diagram" viewBox="0 0 ${W} ${Hh+cap.h}" xmlns="http://www.w3.org/2000/svg">${o}
     ${cap.svg.replace('y="0"', `y="${Hh-8}"`)}</svg>`;
 }
@@ -865,7 +1122,7 @@ function semiLumpedTLSvg(secs, Zh){
 const LAYOUT_NOTES = {
   stub: (vis) => `<b>Where the lengths are measured.</b> A line's <i>l</i> runs <b>junction to junction</b> — the centre of one stub to the centre of the next — which is longer than the copper you can see between them${vis}. A stub's <i>l</i> runs from the <b>through-line centreline</b> (the dashed reference plane) to its open end, so it too is longer than the visible copper below the strip. Those are the planes the synthesis assumes, because Richard's transformation treats each stub as an ideal shunt element at a point. A real board needs T-junction compensation on top of this.`,
   stepped: `<b>Where the lengths are measured.</b> Each <i>l</i> runs between <b>impedance steps</b> — the planes where the strip changes width — and the dimension bars above mark them. There are no stubs in this realisation: the whole filter is the through line, alternating wide and narrow. The step discontinuities themselves add a small reactance the synthesis ignores, which is part of why the stopband falls short of the ideal curve.`,
-  semi: `<b>Where the lengths are measured.</b> A shorted stub's <i>l</i> runs from the <b>through-line centreline</b> to the centre of its via, and the via is what makes it an inductor — leave it out and the stub becomes an open circuit and the filter stops working. The capacitor footprints are drawn as two pads with a gap for a mounted chip part; that gap is a component footprint, not a designed electrical length. Pad and gap sizes here are a standard 0402 footprint, so check them against the part you actually buy.`,
+  semi: (LviaNH, rVia, nStub) => (nStub ? `<b>Where the lengths are measured.</b> A shorted stub's <i>l</i> runs from the <b>through-line centreline</b> to the centre of its via, and the via is what makes it an inductor — leave it out and the stub becomes an open circuit and the filter stops working. The via is not free: a ${(2*rVia).toFixed(2)} mm drill through this board adds about ${LviaNH.toFixed(2)} nH, and each stub has already been shortened to allow for it. ` : `<b>No stubs at first order:</b> the whole filter is one series capacitor in the feed line. `) + `The capacitor footprints are drawn as two pads with a gap for a mounted chip part; that gap is a component footprint, not a designed electrical length. Pads here are a typical 0402 land pattern — 0.50 mm long × 0.55 mm wide with a 0.50 mm gap (≈1.0 mm pad pitch) — so check them against the part you actually buy.`,
   coupled: (uniform) => `<b>Two different lengths live in this picture.</b> A <b>coupled region</b> is a quarter wavelength at f<sub>0</sub> — that is the <i>l</i> in the table below, and there are N+1 of them. A <b>strip</b> spans two regions, so each interior strip is a <b>half wavelength</b>: those are the resonators, and there are N of them. The λ/4 input and output strips sit in one region each. So a third-order filter has 4 coupled regions, 5 strips, and 3 resonators. Lengths run end to end along each strip. `
     + (uniform
       ? `<b>Widths:</b> every resonator is drawn at one uniform width, with the coupling set by the gaps alone. That is the usual practical choice — it gives straight resonators and one etch width to control — and it trades exact Z<sub>0e</sub>/Z<sub>0o</sub> per section for manufacturability, so expect to recover the response in EM tuning.`
@@ -874,7 +1131,8 @@ const LAYOUT_NOTES = {
 
 /* ---- substrate cross-section: where every W in the layout comes from ---- */
 function crossSectionSVG(item, er, h, f0Hz){
-  const W=item.W_mm, Wh=W/h, eeff=microstripEffEps(Wh,er), t=0.035;
+  const W=item.W_mm, Wh=W/h, eeff=microstripEffEps(Wh,er), eeffF=microstripEffEpsF(Wh,er,f0Hz,h), t=0.035;
+  const cpl = item.eeffE!==undefined;
   const SUB='#1b3a44', SUBE='#2dd4bf', COP='#d9a441', COPE='#8a6420',
         TXT='#e6eef3', DIM='#7d97a4', FLD='#4cc3ff', AIR='#0c1720';
   const subW=Math.max(W*2.4, h*8);
@@ -921,27 +1179,62 @@ function crossSectionSVG(item, er, h, f0Hz){
       <text x="${xH+7}" y="${(ySub+sh/2+4).toFixed(1)}" font-size="10.5" fill="${DIM}">h</text>`;
 
   // numbers
-  const lam0=C/f0Hz*1000, lamg=lam0/Math.sqrt(eeff);
+  // a single line's guide wavelength uses the DISPERSIVE eeff(f), the same
+  // value its physical length was computed from; a coupled section uses the
+  // mean of its (quasi-static) even- and odd-mode phase constants
+  const lam0=C/f0Hz*1000;
+  const sqE = cpl ? (Math.sqrt(item.eeffE)+Math.sqrt(item.eeffO))/2 : Math.sqrt(eeffF);
+  const lamg=lam0/sqE;
   const rows=[['W', W.toFixed(3)+' mm'],
               ['h', h.toFixed(3)+' mm'],
               ['W / h', Wh.toFixed(3)],
-              ['εr', er.toFixed(2)],
-              ['εeff', eeff.toFixed(3)],
-              ['Z₀ target', item.Z.toFixed(1)+' Ω'],
-              ['λ₀', lam0.toFixed(2)+' mm'],
-              ['λg', lamg.toFixed(2)+' mm']];
+              ['εr', er.toFixed(2)]]
+    .concat(cpl
+      ? [['s', item.s_mm.toFixed(3)+' mm'],
+         ['εe / εo', item.eeffE.toFixed(3)+' / '+item.eeffO.toFixed(3)],
+         ['Z₀e / Z₀o', item.Z0e_a.toFixed(1)+' / '+item.Z0o_a.toFixed(1)+' Ω']]
+      : [['εeff static', eeff.toFixed(3)],
+         ['εeff(f)', eeffF.toFixed(3)],
+         ['Z₀ target', item.Z.toFixed(1)+' Ω'],
+         ['Z₀ at this W', msZ0HJ(Wh,er).toFixed(1)+' Ω']])
+    .concat([['λ₀', lam0.toFixed(2)+' mm'],
+             ['λg', lamg.toFixed(2)+' mm']]);
   const xT=x0+sw+44;
   rows.forEach((r,i)=>{const y=padT+2+i*17;
     o+=`<text x="${xT}" y="${y}" font-size="10.5" fill="${DIM}">${r[0]}</text>
         <text x="${xT+152}" y="${y}" text-anchor="end" font-size="10.5" fill="${TXT}">${r[1]}</text>`;});
 
   // the readout column can be taller than the drawing itself
-  const cap=svgCaption(`Hammerstad synthesis: Z₀ and εr give W/h, then W/h and εr give εeff. Drawn to scale at ${k.toFixed(1)} px/mm.`, x0, 0, vw-x0-12, 9.5);
+  const cap=svgCaption((cpl
+      ? `Coupled section, shown as one of its two strips: W and s are solved together so the Kirschning–Jansen quasi-static even/odd impedances hit the J-inverter targets; λg uses the mean even/odd phase velocity (no dispersion).`
+      : `Hammerstad–Jensen: W/h is solved numerically so that Z₀(W/h, εr) hits the target; εeff(f) at ${(f0Hz/1e9).toFixed(2)} GHz adds Kirschning–Jansen dispersion to the static value and sets λg.`)
+    + ` Primary geometry drawn to scale at ${k.toFixed(1)} px/mm; very small features are shown at a minimum display size.`, x0, 0, vw-x0-12, 9.5);
   const body=Math.max(yGnd+Math.max(4,tPx)+24, padT+2+rows.length*17+18);
   const Hh=body+cap.h+14;
   o+=cap.svg.replace('y="0"', `y="${(body+10).toFixed(0)}"`);
   return `<svg class="diagram" viewBox="0 0 ${vw} ${Hh.toFixed(0)}" xmlns="http://www.w3.org/2000/svg">${o}</svg>`;
 }
+
+/* Buildability: flag any strip the etcher cannot hold or the quasi-TEM model
+   does not describe. Returns note text naming each offending element. */
+function buildWarnings(items, fHz){
+  const out=[];
+  items.forEach(it=>{
+    const Wh=it.W_mm/st.h, why=[];
+    const lg=lambdaGmm(Wh, st.er, fHz, st.h);
+    if(Wh<=WH_MIN*1.0001 || Wh>=WH_MAX*0.9999) why.push(`its ${it.Z.toFixed(0)} Ω target is outside what microstrip on this board can reach (W/h pinned at ${Wh.toFixed(3)})`);
+    if(it.W_mm<0.1) why.push(`W = ${(it.W_mm*1000).toFixed(0)} µm is below a 0.1 mm etch limit`);
+    if(Wh<0.01) why.push(`W/h = ${Wh.toFixed(4)} is below 0.01`);
+    if(Wh>20) why.push(`W/h = ${Wh.toFixed(1)} is above 20`);
+    if(it.W_mm>lg/4) why.push(`W = ${fmtW(it.W_mm)} mm is wider than λg/4 = ${(lg/4).toFixed(2)} mm, so it no longer behaves as a quasi-TEM line (a transverse resonance sits in or near the band)`);
+    if(it.s_mm!==undefined && it.s_mm<0.1) why.push(`gap s = ${(it.s_mm*1000).toFixed(0)} µm is below a 0.1 mm etch limit`);
+    if(why.length) out.push(`<b>${it.name}</b>: ${why.join('; ')}`);
+  });
+  return out.length
+    ? ' <b>Buildability warning.</b> '+out.join('. ')+'. As drawn this is not a trustworthy layout: change h or ε<sub>r</sub>, or the impedance levels.'
+    : '';
+}
+const dBtxt=d=>Math.abs(d).toFixed(2)+' dB '+(d<0?'more':'less')+' loss';
 
 /* ================= main compute + render ================= */
 function computeAndRender(){
@@ -951,40 +1244,47 @@ function computeAndRender(){
   const bw = st.bwPct/100;
   const elements = buildLadder(st.filterType, g, st.Z0, wc, bw);
 
-  // response sweep
+  // response sweep (display) and the axis it is drawn on
   let fLo, fHi, f0Hz;
   if(st.filterType==='lowpass'){ fLo=fcHz*0.05; fHi=fcHz*3; f0Hz=fcHz; }
   else if(st.filterType==='highpass'){ fLo=fcHz*0.2; fHi=fcHz*3; f0Hz=fcHz; }
   else { f0Hz=fcHz; fLo=fcHz*(1-bw*3); fHi=fcHz*(1+bw*3); if(fLo<fcHz*0.3) fLo=fcHz*0.3; }
-  let fDiv=6;
-  if(st.axis==='fixed'){ fLo=0.02e9; fHi=7e9; fDiv=7; }
+  let axLo=fLo, axHi=fHi, fStepGHz=0;
+  // fixed axis is drawn 0-7 GHz so its integer labels are true; the sweep
+  // itself starts at 20 MHz because a highpass ladder is singular at DC
+  if(st.axis==='fixed'){ fLo=0.02e9; fHi=7e9; axLo=0; axHi=7e9; fStepGHz=1; }
   const freqs=[]; const NF=1600;
   for(let i=0;i<=NF;i++) freqs.push(fLo+(fHi-fLo)*i/NF);
   const ZL = loadImpedance(elements, g, st.Z0);
+  const mismatched = Math.abs(ZL-st.Z0)>0.5;
   const resp = response(elements, st.Z0, ZL, freqs);
 
-  // ripple readout: max IL in passband region
   /* Passband measurement.
-     The old window started 2% off cutoff and called whatever it found "ripple".
-     For a Butterworth that is just the rolloff near fc -- a maximally flat
-     filter has no ripple at all -- so N=7 highpass reported "2.44 dB ripple".
-     Ripple is only meaningful for Chebyshev, and then it must be measured over
-     the true equiripple band, which runs right up to fc. */
+     Ripple and the -3 dB points are measured on their OWN grid, laid out in
+     prototype frequency Omega so it contains the band edges |Omega| = 1
+     exactly, whatever the display axis is doing. Measuring on the plot sweep
+     made the readout depend on the axis choice (a fixed 0-7 GHz axis put only
+     a handful of points inside a 2% bandpass). Ripple is only meaningful for
+     Chebyshev, and it is measured over the true equiripple band. */
   let bandLo, bandHi;
   if(st.filterType==='lowpass'){ bandLo=fcHz*0.02; bandHi=fcHz; }
-  else if(st.filterType==='highpass'){ bandLo=fcHz; bandHi=fHi; }
+  else if(st.filterType==='highpass'){ bandLo=fcHz; bandHi=fcHz*3; }
   else { const rr=Math.sqrt(bw*bw+4); bandLo=fcHz*(-bw+rr)/2; bandHi=fcHz*(bw+rr)/2; }
-  let maxIL=0, minIL=999;
-  resp.forEach(r=>{
-    if(r.f>=bandLo && r.f<=bandHi){ const il=-r.s21db; if(il>maxIL) maxIL=il; if(il<minIL) minIL=il; }
-  });
-  if(minIL>900) minIL=0;
+  const NM=3000, mf=[], om=[];
+  for(let i=0;i<=NM;i++){
+    if(st.filterType==='bandpass'){ const O=-1.5+3*i/NM; om.push(O); mf.push(fcHz*(bw*O+Math.sqrt(bw*bw*O*O+4))/2); }
+    else { if(i===0) continue; const O=1.5*i/NM; om.push(O); mf.push(st.filterType==='lowpass'? fcHz*O : fcHz/O); }
+  }
+  const mr=response(elements, st.Z0, ZL, mf);
+  let maxIL=0;
+  mr.forEach((r,i)=>{ if(Math.abs(om[i])<=1+1e-9){ const il=-r.s21db; if(il>maxIL) maxIL=il; } });
   // measured -3 dB crossings, interpolated -- a real check, not a restatement
   const HALF=-10*Math.log10(2);
   const cross=[];
-  for(let i=1;i<resp.length;i++){
-    const a=resp[i-1].s21db-HALF, b=resp[i].s21db-HALF;
-    if((a<0&&b>=0)||(a>0&&b<=0)) cross.push(resp[i-1].f + (resp[i].f-resp[i-1].f)*Math.abs(a)/(Math.abs(a)+Math.abs(b)));
+  const ord=mr.map((r,i)=>i).sort((a,b)=>mf[a]-mf[b]);
+  for(let j=1;j<ord.length;j++){
+    const p=mr[ord[j-1]], q=mr[ord[j]], a=p.s21db-HALF, b=q.s21db-HALF;
+    if((a<0&&b>=0)||(a>0&&b<=0)) cross.push(p.f + (q.f-p.f)*Math.abs(a)/(Math.abs(a)+Math.abs(b)));
   }
   const fmtG=x=>(x/1e9).toFixed(3)+' GHz';
   // stat tiles
@@ -994,21 +1294,21 @@ function computeAndRender(){
   $("stFreqLbl").textContent = st.filterType==='bandpass' ? 'f0' : 'fc';
   $("stFreq").textContent = st.fc.toFixed(2)+' GHz';
   $("stRipple").textContent = st.poly==='chebyshev' ? maxIL.toFixed(2)+' dB' : '(maxflat)';
-  $("stZ0").textContent = Math.abs(ZL-st.Z0)>0.5
+  $("stZ0").textContent = mismatched
     ? st.Z0+' / '+ZL.toFixed(1)+' Ω'
     : st.Z0+' Ω';
 
   // ladder diagram
   $("ladderSvg").innerHTML = ladderSVG(elements, st.Z0, ZL);
   const gTxt = g.slice(0,-1).map((v,i)=>'g'+i+'='+v.toFixed(3)).join('  ')+'  g'+(g.length-1)+'='+g[g.length-1].toFixed(3);
-  $("tagLadder").textContent = gTxt + (Math.abs(ZL-st.Z0)>0.5 ? '   •  RL = '+ZL.toFixed(1)+'Ω' : '');
+  $("tagLadder").textContent = gTxt + (mismatched ? '   •  RL = '+ZL.toFixed(1)+'Ω' : '');
 
   // response chart
   // band edges are the TRUE transformed ones, f0*(-/+D + sqrt(D^2+4))/2, not f0*(1 +/- D/2)
   const markers = st.filterType==='bandpass'
     ? [{f:bandLo,label:'f1'},{f:fcHz,label:'f0'},{f:bandHi,label:'f2'}]
     : [{f:fcHz,label:'fc'}];
-  $("chartSvg").innerHTML = chartSVG(resp, fLo, fHi, markers, {rippleDb: st.poly==='chebyshev'?st.rippleDb:0, fDiv});
+  $("chartSvg").innerHTML = chartSVG(resp, axLo, axHi, markers, {rippleDb: st.poly==='chebyshev'?st.rippleDb:0, fStepGHz});
   if(st.poly==='chebyshev'){
     $("tagResponse").textContent = 'ripple '+maxIL.toFixed(2)+' dB across the passband (design '+st.rippleDb.toFixed(2)+' dB)';
   } else {
@@ -1018,72 +1318,111 @@ function computeAndRender(){
     $("tagResponse").textContent = 'maximally flat · −3 dB at '+near;
   }
 
+  // reference impedances, for the assumptions card
+  $("asmRef").innerHTML = mismatched
+    ? `Source Z<sub>0</sub> = ${st.Z0} Ω; load Z<sub>L</sub> = g<sub>N+1</sub>·Z<sub>0</sub> = ${ZL.toFixed(1)} Ω (even-order Chebyshev). The curve is computed into Z<sub>L</sub>.`
+    : `Source and load both Z<sub>0</sub> = ${st.Z0} Ω.`;
+
   // transmission-line equivalent + physical layout
   const segs=[];
+  let warnTxt='';
   /* The 50 ohm feed width is a synthesis result too, not a given. Show it
      alongside the filter sections so nothing on the board is unexplained.
      Its drawn LENGTH is arbitrary - feeds are whatever the connector needs. */
   const fWh = microstripSynthWh(st.Z0, st.er), fW = fWh*st.h;
-  const feedCard = `<div class="ro"><dt>Feed — ${st.Z0} Ω</dt><dd>W=${fW.toFixed(3)}mm<br>W/h=${fWh.toFixed(3)}<br>εeff=${microstripEffEps(fWh,st.er).toFixed(3)}<br><span style="font-size:10px;opacity:.7">length arbitrary</span></dd></div>`;
+  const fWhL = microstripSynthWh(ZL, st.er), fWL = fWhL*st.h;
+  const feedItem = {name:'Feed line', W_mm:fW, Z:st.Z0};
+  const eF = Wh=>microstripEffEpsF(Wh, st.er, f0Hz, st.h);
+  const feedCard = `<div class="ro"><dt>Feed — ${st.Z0} Ω</dt><dd>W=${fW.toFixed(3)}mm<br>W/h=${fWh.toFixed(3)}<br>εeff(f)=${eF(fWh).toFixed(3)}<br><span style="font-size:10px;opacity:.7">length arbitrary</span></dd></div>`;
+  // an output port at ZL, when the realisation keeps the prototype's load
+  const portCard = `<div class="ro"><dt>Output port — ${ZL.toFixed(1)} Ω</dt><dd>W=${fWL.toFixed(3)}mm<br>W/h=${fWhL.toFixed(3)}<br>εeff(f)=${eF(fWhL).toFixed(3)}<br><span style="font-size:10px;opacity:.7">= g<sub>N+1</sub>·Z<sub>0</sub></span></dd></div>`;
+  const layOpts = {er:st.er, h:st.h, Z0:st.Z0, ZL, feedW_mm:fW, feedWL_mm:fWL};
+  // "into ZL only" sentence shared by every branch that keeps the unequal load
+  const zlNote = (lossZ0, lossZL, band) =>
+    ` <b>This case:</b> an even-order Chebyshev prototype ends in ${ZL.toFixed(1)} Ω, not ${st.Z0} Ω, and the layout below keeps that: its output port is drawn as a ${ZL.toFixed(1)} Ω line. It reproduces the plotted curve <b>only when terminated in ${ZL.toFixed(1)} Ω</b>. Connected straight to a ${st.Z0} Ω load, this network's worst passband loss (${band}) becomes ${lossZ0.toFixed(2)} dB, against ${lossZL.toFixed(2)} dB into ${ZL.toFixed(1)} Ω — add a quarter-wave transformer or an impedance step to reach a ${st.Z0} Ω connector. Odd orders avoid this entirely.`;
+
   if(st.filterType==='bandpass'){
     $("tlTitle").textContent='Coupled-Line (J-Inverter) Equivalent';
     const sections = coupledLineSections(g, st.Z0, bw);
     $("tlSvg").innerHTML = coupledLineTLSvg(sections);
     $("tagTL").textContent = sections.length+' sections';
-    $("tlNote").innerHTML = '<b>Note:</b> the even/odd-mode impedances (Z0e, Z0o) are exact from the J-inverter synthesis. The microstrip dimensions below are <b>initial estimates for EM refinement</b>, not a finished layout: W is synthesised from the single-line formula at √(Z0e·Z0o), l assumes one εeff for both modes when they actually travel at different velocities, and s is fitted from the coupling coefficient. Expect to tune all three in a full-wave solver.';
+    // what the IDEAL coupled-line network does across the design band
+    const ilC = worstLossDb(f=>coupledNetS21dB(sections, f0Hz, st.Z0, f), bandLo, bandHi);
+    const ilL = worstLossDb(f=>lumpedS21dB(elements, st.Z0, ZL, f), bandLo, bandHi);
+    $("tlNote").innerHTML = '<b>Note:</b> Z0e and Z0o follow from the J-inverter design equations, which are <b>narrow-band</b>: a coupled λ/4 section equals an admittance inverter plus two λ/4 lines exactly only at f<sub>0</sub>, and the approximation drifts as the fractional bandwidth grows. For this design the ideal coupled-line network (lossless, TEM, exact Z0e/Z0o) has a worst loss of '+ilC.toFixed(2)+' dB across f<sub>1</sub>–f<sub>2</sub>, against '+ilL.toFixed(2)+' dB for the lumped ladder above. '
+      + 'The microstrip W, s and l below are solved from the Kirschning–Jansen coupled-line model (quasi-static — no dispersion) and are <b>starting dimensions for EM refinement</b>, not a finished layout.'
+      + (mismatched ? ' <b>Terminations:</b> the coupled realisation is '+st.Z0+' Ω in and '+st.Z0+' Ω out — the prototype\'s g<sub>N+1</sub> (the '+ZL.toFixed(1)+' Ω load of the lumped ladder) is absorbed by the last inverter, J<sub>N+1</sub>, so no output transformer is needed.' : '');
     /* Resonator width. Per-section widths come straight from each section's
-       sqrt(Z0e*Z0o), but a strip spans TWO sections, so it steps in width at its
-       midpoint. Uniform width instead fixes one W for the whole filter and lets
-       the gaps carry the coupling - straight resonators, one etch width, and
-       exact Z0e/Z0o traded for manufacturability. */
-    const Zavgs = sections.map(sc=>Math.sqrt(sc.Z0e*sc.Z0o));
-    const Zuni = Zavgs.reduce((a,b)=>a+b,0)/Zavgs.length;
-    sections.forEach((sc,i)=>{
-      const Zavg = Zavgs[i];
-      const Wh = microstripSynthWh(st.cw==='uniform' ? Zuni : Zavg, st.er);
-      const W_mm = Wh*st.h;
-      const len_mm = physLenMm(Wh, st.er, f0Hz, 90, st.h); // quarter-wave region
-      const k = (sc.Z0e-sc.Z0o)/(sc.Z0e+sc.Z0o);
-      const s_mm = st.h * (0.3 + 2.8*Math.exp(-4.5*k)); // approximate, clearly labeled
-      segs.push({type:'coupled', W_mm, L_mm:len_mm, s_mm, Z:Zavg, name:`Coupled section ${i+1}`, label:`W=${W_mm.toFixed(2)} s=${s_mm.toFixed(2)} l=${len_mm.toFixed(2)}mm`});
+       own (W,s) solution, but a strip spans TWO sections, so it steps in width
+       at its midpoint. Uniform width instead fixes one W for the whole filter
+       and lets the gaps carry the coupling - straight resonators, one etch
+       width, and exact Z0e/Z0o traded for manufacturability. */
+    const syn = sections.map(sc=>coupledMsSynth(sc.Z0e, sc.Z0o, st.er, st.h, {f0Hz}));
+    let use = syn;
+    if(st.cw==='uniform'){
+      // one strip width for the whole filter (geometric mean of the per-section
+      // solutions); each gap is then re-solved so the section keeps its coupling
+      // coefficient k=(Z0e-Z0o)/(Z0e+Z0o), which sets the normalised inverter J*Zline.
+      const uU = Math.exp(syn.reduce((a,r)=>a+Math.log(r.Wh),0)/syn.length);
+      use = sections.map(sc=>coupledMsSynth(sc.Z0e, sc.Z0o, st.er, st.h, {f0Hz, fixedWh:uU}));
+    }
+    const warnAll = [...new Set(use.flatMap(r=>r.warn))];
+    use.forEach((r,i)=>{
+      const Zm=Math.sqrt(r.Z0e_a*r.Z0o_a);
+      segs.push({type:'coupled', W_mm:r.W_mm, L_mm:r.L_mm, s_mm:r.s_mm, Z:Zm,
+                 Z0e_a:r.Z0e_a, Z0o_a:r.Z0o_a, eeffE:r.eeffE, eeffO:r.eeffO,
+                 name:`Section ${i+1} — coupled, Z0e/Z0o ${r.Z0e_a.toFixed(0)}/${r.Z0o_a.toFixed(0)} Ω`, label:`W=${fmtW(r.W_mm)} s=${r.s_mm.toFixed(3)} l=${r.L_mm.toFixed(2)}mm`});
     });
-    $("layoutSvg").innerHTML = stripLayoutSVG(segs, {er:st.er, h:st.h, Z0:st.Z0, feedW_mm:microstripSynthWh(st.Z0,st.er)*st.h});
+    $("layoutSvg").innerHTML = stripLayoutSVG(segs, {er:st.er, h:st.h, Z0:st.Z0, feedW_mm:fW});
     $("tagLayout").textContent = segs.length+' coupled sections';
-    $("layoutNote").innerHTML = LAYOUT_NOTES.coupled(st.cw==='uniform');
+    warnTxt = buildWarnings([feedItem].concat(segs.map((sg,i)=>({...sg, name:'Section '+(i+1)}))), f0Hz);
+    $("layoutNote").innerHTML = LAYOUT_NOTES.coupled(st.cw==='uniform')
+      + (warnAll.length ? ' <b>Check:</b> '+warnAll.join('; ')+'.' : '') + warnTxt;
     $("cwTabs").style.display='';
-    $("dimTable").innerHTML = feedCard + segs.map((s,i)=>`<div class="ro"><dt>Section ${i+1}</dt><dd>W=${s.W_mm.toFixed(2)}mm<br>s≈${s.s_mm.toFixed(2)}mm*<br>l=${s.L_mm.toFixed(2)}mm<br>εeff=${microstripEffEps(s.W_mm/st.h,st.er).toFixed(3)}</dd></div>`).join('')
-      + '<div class="ro" style="grid-column:1/-1;background:transparent"><dt>* starting point</dt><dd style="font-size:10.5px;font-weight:400;color:var(--ink2)">Treat all three as initial estimates for EM refinement. Z0e and Z0o are exact from the J-inverter synthesis, but W comes from single-line synthesis at √(Z0e·Z0o), l uses a single-line εeff that ignores the even/odd-mode velocity difference, and s is fitted from the coupling coefficient.</dd></div>';
+    $("dimTable").innerHTML = feedCard + segs.map((s,i)=>`<div class="ro"><dt>Section ${i+1}</dt><dd>W=${s.W_mm.toFixed(3)}mm<br>s=${s.s_mm.toFixed(3)}mm<br>l=${s.L_mm.toFixed(2)}mm<br>Z0e/Z0o=${s.Z0e_a.toFixed(1)}/${s.Z0o_a.toFixed(1)} Ω<br>εe/εo=${s.eeffE.toFixed(3)}/${s.eeffO.toFixed(3)}</dd></div>`).join('')
+      + '<div class="ro" style="grid-column:1/-1;background:transparent"><dt>model</dt><dd style="font-size:10.5px;font-weight:400;color:var(--ink2)">Z0e/Z0o come from the narrow-band J-inverter equations (the inverter equivalence is exact at f<sub>0</sub> only). W and s are then solved so the Kirschning–Jansen quasi-static even/odd impedances match those targets (about ±1% against a 2-D field solve); l is λ/4 at f<sub>0</sub> using the mean of the even- and odd-mode phase velocities. Dispersion, open-end and step effects are not included: finish in an EM solver.</dd></div>';
   } else {
     if(st.filterType==='highpass'){
-      const Zh=120, PAD=0.6, GAP=0.6;          // 0402 chip footprint
-      const secs = semiLumpedHighpass(elements, Zh, fcHz);
+      const Zh=120, PAD=0.5, GAP=0.5, PADW=0.55;   // 0402 land pattern: 0.5 x 0.55 mm pads, 0.5 mm gap
+      const WhStub=microstripSynthWh(Zh, st.er), Wstub=WhStub*st.h, rVia=Math.max(0.3, Wstub*0.33);
+      const Lvia=viaInductance(st.h, rVia);
+      const secs = semiLumpedHighpass(elements, Zh, fcHz, Lvia);
       $("tlTitle").textContent='Semi-Lumped Equivalent';
       $("tlSvg").innerHTML = semiLumpedTLSvg(secs, Zh);
       $("tagTL").textContent = secs.length+' sections';
-      const worst = Math.max(...secs.filter(x=>x.kind==='L').map(x=>x.thetaDeg), 0);
-      $("tlNote").innerHTML = "<b>Why this is not a stub filter:</b> Richard's transformation turns a highpass ladder into <i>series</i> open stubs and <i>shunt</i> short stubs, and the Kuroda identities that would move the series ones to shunt need an ideal transformer — which microstrip cannot build. So a highpass is realised semi-lumped instead. "
-        + "<b>The shunt inductors are exact:</b> a short-circuited line has Z<sub>in</sub> = jZ<sub>h</sub>·tanθ, so θ = atan(ωL/Z<sub>h</sub>) reproduces each inductor exactly at f<sub>c</sub> (widest here is θ = "+worst.toFixed(1)+"°). Away from f<sub>c</sub> tanθ outruns the linear ωL, so the passband drifts. "
-        + "<b>The series capacitors are mounted parts.</b> No length of line produces series capacitance of this size, so each one is a gap with a chip capacitor across it. That makes this a buildable board rather than a purely distributed one, and it is how highpass filters are normally done at these frequencies.";
+      const stubs = secs.filter(x=>x.kind==='L');
+      const worst = Math.max(...stubs.map(x=>x.thetaDeg), 0);
+      const ilS = worstLossDb(f=>semiLumpedS21dB(secs,Zh,fcHz,st.Z0,ZL,f), fcHz, 3*fcHz);
+      const ilL = worstLossDb(f=>lumpedS21dB(elements,st.Z0,ZL,f), fcHz, 3*fcHz);
+      const viaLim = stubs.some(x=>x.viaLimited);
+      $("tlNote").innerHTML = "<b>Why this is not a stub filter:</b> applying Richard's transformation to <i>this</i> lumped highpass ladder gives <i>series</i> open stubs (from the series capacitors) and shunt short stubs. No Kuroda identity moves a series open stub to shunt — the transformer-type identities only carry it across a unit element, where it is still in series — and microstrip cannot build a series stub. The mapped response is also periodic: with θ = 45° at f<sub>c</sub> it is really an f<sub>c</sub>–3f<sub>c</sub> bandpass that blocks again near 4f<sub>c</sub>. Distributed highpass filters do exist (shorted-stub and unit-element designs synthesised directly in the Richards domain), but that is a different synthesis; for this tool's ladder the semi-lumped realisation is the practical choice. "
+        + (stubs.length
+          ? "<b>The shunt inductors are exact at f<sub>c</sub>:</b> a short-circuited line plus its via ("+(Lvia*1e9).toFixed(2)+" nH here) has Z<sub>in</sub> = j(Z<sub>h</sub>·tanθ + ωL<sub>via</sub>), so θ = atan((ωL − ωL<sub>via</sub>)/Z<sub>h</sub>) reproduces each inductor at f<sub>c</sub> (widest here θ = "+worst.toFixed(1)+"°)."
+            + (viaLim ? " <b>Warning:</b> on this board the via alone has more inductance than at least one shunt inductor needs, so that stub is reduced to a stub of minimal length and the inductor is <i>not</i> met — use a thinner substrate or a wider via." : "")
+            + " Above f<sub>c</sub> tanθ outruns the linear ωL: across f<sub>c</sub>–3f<sub>c</sub> this network's worst insertion loss is "+ilS.toFixed(2)+" dB against "+ilL.toFixed(2)+" dB for the lumped ladder, and the stubs short the line again at "+(fcHz*180/worst/1e9).toFixed(2)+" GHz (θ = 180°). "
+          : "<b>This first-order case is a single series capacitor</b> — there are no inductors, so no stubs and no vias. ")
+        + "<b>The series capacitors are mounted parts.</b> No length of line produces series capacitance of this size, so each one is a gap with a chip capacitor across it."
+        + (mismatched ? zlNote(worstLossDb(f=>semiLumpedS21dB(secs,Zh,fcHz,st.Z0,st.Z0,f), fcHz, 3*fcHz), ilS, 'f<sub>c</sub>–3f<sub>c</sub>') : "");
       secs.forEach((sc,i)=>{
         if(sc.kind==='C'){
-          segs.push({type:'gap', W_mm:fW, padW_mm:0.65, pad_mm:PAD, gap_mm:GAP, Z:st.Z0,
-                     name:`Chip cap ${i+1} — ${(sc.C*1e12).toFixed(2)} pF`,
-                     note:`C = ${(sc.C*1e12).toFixed(2)} pF`, label2:'0402 pads'});
+          segs.push({type:'gap', W_mm:fW, padW_mm:PADW, pad_mm:PAD, gap_mm:GAP, Z:st.Z0,
+                     name:`Chip cap ${i+1} — ${pFtxt(sc.C)}`,
+                     note:`C = ${pFtxt(sc.C)}`, label2:'0402 pads'});
         } else {
-          const Wh=microstripSynthWh(sc.Z, st.er), W_mm=Wh*st.h;
-          segs.push({type:'stub', shorted:true, W_mm, L_mm:physLenMm(Wh, st.er, fcHz, sc.thetaDeg, st.h), Z:sc.Z,
+          segs.push({type:'stub', shorted:true, W_mm:Wstub, L_mm:physLenMm(WhStub, st.er, fcHz, sc.thetaDeg, st.h), Z:sc.Z,
                      name:`Shorted stub ${i+1} — ${sc.Z} Ω`});
         }
       });
-      $("layoutSvg").innerHTML = stripLayoutSVG(segs, {er:st.er, h:st.h, Z0:st.Z0, feedW_mm:fW});
+      $("layoutSvg").innerHTML = stripLayoutSVG(segs, layOpts);
       $("tagLayout").textContent = segs.length+' sections';
-      $("layoutNote").innerHTML = LAYOUT_NOTES.semi;
+      warnTxt = buildWarnings([feedItem].concat(mismatched?[{name:'Output port', W_mm:fWL, Z:ZL}]:[], segs.filter(x=>x.type==='stub').map(x=>({...x, name:x.name.split(' — ')[0]}))), fcHz);
+      $("layoutNote").innerHTML = LAYOUT_NOTES.semi(Lvia*1e9, rVia, stubs.length) + warnTxt;
       $("cwTabs").style.display='none';
       $("dimTable").innerHTML = feedCard + secs.map((sc,i)=>
         sc.kind==='C'
-          ? `<div class="ro"><dt>Chip cap ${i+1}</dt><dd>C=${(sc.C*1e12).toFixed(2)}pF<br>0402 pads<br><span style="font-size:10px;opacity:.7">mounted part</span></dd></div>`
-          : `<div class="ro"><dt>Shorted stub ${i+1}</dt><dd>Z=${sc.Z} Ω<br>θ=${sc.thetaDeg.toFixed(1)}°<br>W=${segs.find(x=>x.name&&x.name.startsWith('Shorted stub '+(i+1))).W_mm.toFixed(2)}mm<br>l=${segs.find(x=>x.name&&x.name.startsWith('Shorted stub '+(i+1))).L_mm.toFixed(2)}mm</dd></div>`
-      ).join('');
+          ? `<div class="ro"><dt>Chip cap ${i+1}</dt><dd>C=${pFtxt(sc.C)}<br>0402 pads<br><span style="font-size:10px;opacity:.7">mounted part</span></dd></div>`
+          : `<div class="ro"><dt>Shorted stub ${i+1}</dt><dd>Z=${sc.Z} Ω<br>θ=${sc.thetaDeg.toFixed(1)}°<br>W=${fmtW(segs[i].W_mm)}mm<br>l=${segs[i].L_mm.toFixed(2)}mm<br>via ${(Lvia*1e9).toFixed(2)} nH</dd></div>`
+      ).join('') + (mismatched ? portCard : '');
     } else if(st.N>3){
       const Zh=120, Zl=20;
       const secs = steppedImpedance(g, st.N, st.Z0, Zh, Zl);
@@ -1091,70 +1430,104 @@ function computeAndRender(){
       $("tlSvg").innerHTML = steppedTLSvg(secs, Zh, Zl);
       $("tagTL").textContent = secs.length+' sections';
       const worst = Math.max(...secs.map(x=>x.thetaDeg));
+      // what this line cascade really does, against the lumped ladder
+      const ilS = worstLossDb(f=>steppedS21dB(secs,fcHz,st.Z0,ZL,f), 0.01*fcHz, fcHz);
+      const ilL = worstLossDb(f=>lumpedS21dB(elements,st.Z0,ZL,f), 0.01*fcHz, fcHz);
+      const s2S = steppedS21dB(secs,fcHz,st.Z0,ZL,2*fcHz), s2L = lumpedS21dB(elements,st.Z0,ZL,2*fcHz);
       $("tlNote").innerHTML = "<b>Why this instead of stubs:</b> the Richard's + Kuroda reduction in this tool is the closed-form N=1–3 case, so above third order the lowpass is realised the other standard way — a cascade of short high- and low-impedance lines. A short line of high Z₀ looks like a series inductor, a short line of low Z₀ like a shunt capacitor. "
-        + "<b>This is an approximation by construction:</b> it assumes each section is electrically short, so it degrades as θ grows. The widest section here is θ = "+worst.toFixed(1)+"°"
-        + (worst>45 ? " — <b>past the usual 45° limit</b>, so expect the measured skirt to fall short of the ideal curve above. Raise Zh, lower Zl, or drop the order." : ", inside the usual 45° working limit.")
-        + " Zh = "+Zh+" Ω and Zl = "+Zl+" Ω are chosen for what a normal etch process can hold; they are the real constraint on how well this realisation tracks the prototype.";
+        + "<b>This is an approximation by construction:</b> it assumes each section is electrically short, so both the passband and the skirt degrade as θ grows. The widest section here is θ = "+worst.toFixed(1)+"°"
+        + (worst>90 ? " — <b>past 90°</b>, so that section is no longer short in any sense and the cascade is <b>no longer a lowpass approximation</b>: it develops a spurious passband instead of a stopband. Raise Zh, lower Zl, or drop the order."
+          : worst>45 ? " — <b>past the usual 45° limit</b>. Raise Zh, lower Zl, or drop the order."
+          : ", inside the usual 45° working limit.")
+        + " Computed for this cascade (into the same load as the curve): worst passband loss 0–f<sub>c</sub> is "+ilS.toFixed(2)+" dB against "+ilL.toFixed(2)+" dB for the lumped ladder, and at 2f<sub>c</sub> it gives "+(-s2S).toFixed(1)+" dB of rejection against "+(-s2L).toFixed(1)+" dB."
+        + " Zh = "+Zh+" Ω and Zl = "+Zl+" Ω are chosen for what a normal etch process can hold; they are the real constraint on how well this realisation tracks the prototype."
+        + (mismatched ? zlNote(worstLossDb(f=>steppedS21dB(secs,fcHz,st.Z0,st.Z0,f), 0.01*fcHz, fcHz), ilS, '0–f<sub>c</sub>') : "");
       secs.forEach((sc,i)=>{
         const Wh = microstripSynthWh(sc.Z, st.er);
         const W_mm = Wh*st.h;
         const len_mm = physLenMm(Wh, st.er, fcHz, sc.thetaDeg, st.h);
         segs.push({type:'line', W_mm, L_mm:len_mm, Z:sc.Z,
                    name:`${sc.kind==='L'?'High-Z':'Low-Z'} ${i+1} — ${sc.Z} Ω`,
-                   label:`W=${W_mm.toFixed(2)} l=${len_mm.toFixed(2)}mm`});
+                   label:`W=${fmtW(W_mm)} l=${len_mm.toFixed(2)}mm`});
       });
-      $("layoutSvg").innerHTML = stripLayoutSVG(segs, {er:st.er, h:st.h, Z0:st.Z0, feedW_mm:microstripSynthWh(st.Z0,st.er)*st.h});
+      $("layoutSvg").innerHTML = stripLayoutSVG(segs, layOpts);
       $("tagLayout").textContent = segs.length+' sections';
-      $("layoutNote").innerHTML = LAYOUT_NOTES.stepped;
+      warnTxt = buildWarnings([feedItem].concat(mismatched?[{name:'Output port', W_mm:fWL, Z:ZL}]:[], segs.map(x=>({...x, name:x.name.split(' — ')[0]}))), fcHz);
+      $("layoutNote").innerHTML = LAYOUT_NOTES.stepped + warnTxt;
       $("cwTabs").style.display='none';
-      $("dimTable").innerHTML = feedCard + segs.map((sg,i)=>`<div class="ro"><dt>${secs[i].kind==='L'?'High-Z':'Low-Z'} ${i+1}</dt><dd>Z=${sg.Z} Ω<br>θ=${secs[i].thetaDeg.toFixed(1)}°<br>W=${sg.W_mm.toFixed(2)}mm<br>l=${sg.L_mm.toFixed(2)}mm</dd></div>`).join('');
+      $("dimTable").innerHTML = feedCard + segs.map((sg,i)=>`<div class="ro"><dt>${secs[i].kind==='L'?'High-Z':'Low-Z'} ${i+1}</dt><dd>Z=${sg.Z} Ω<br>θ=${secs[i].thetaDeg.toFixed(1)}°<br>W=${fmtW(sg.W_mm)}mm<br>l=${sg.L_mm.toFixed(2)}mm</dd></div>`).join('') + (mismatched ? portCard : '');
     } else {
       $("tlTitle").textContent="Richard's Transform + Kuroda Stub Equivalent";
       const stubs = richardsStubs(elements, wc);
-      const stages = kurodaReduceOdd(stubs, st.Z0);
+      const stages = kurodaReduceOdd(stubs, st.Z0, ZL);
       $("tlSvg").innerHTML = stubSchematicSVG(stages, fcHz);
       $("tagTL").textContent = stages.length+' elements';
-      $("tlNote").innerHTML = "<b>Exact at f<sub>c</sub>:</b> this stub network reproduces the lumped ladder's response exactly at the design frequency (verified via ABCD-matrix equivalence to machine precision). Away from f<sub>c</sub> the commensurate lines diverge and the skirt steepens — about 0.15 dB at 0.8 f<sub>c</sub>, several dB by 1.2 f<sub>c</sub>. That is expected behaviour for a stub realization, not an error: read the lumped curve above as the design target and this network as its distributed approximation. The layout draws each stub at its full width straddling the junction, which is geometrically honest but ignores the T-junction discontinuity — a wide low-impedance stub eats real line length, so subtract roughly half its width from each adjacent line before etching."
-        + (Math.abs(ZL-st.Z0)>0.5 ? " <b>This case:</b> an even-order Chebyshev prototype ends in "+ZL.toFixed(1)+"Ω, not 50Ω. The layout below assumes a 50Ω output port, so it needs a quarter-wave transformer or an impedance step at the load end to be physically correct. Odd orders avoid this entirely." : "");
+      // quote the real distributed-vs-lumped numbers for THIS network
+      const dAt = x=>stubNetS21dB(stages,fcHz,st.Z0,ZL,x*fcHz) - lumpedS21dB(elements,st.Z0,ZL,x*fcHz);
+      const d08=dAt(0.8), d12=dAt(1.2);
+      $("tlNote").innerHTML = "<b>Exact at f<sub>c</sub>:</b> this stub network reproduces the lumped ladder's response exactly at the design frequency (verified via ABCD-matrix equivalence to machine precision). Away from f<sub>c</sub> the commensurate lines diverge — computed for this network, it has "+dBtxt(d08)+" than the lumped ladder at 0.8 f<sub>c</sub> and "+dBtxt(d12)+" at 1.2 f<sub>c</sub>. That is expected behaviour for a stub realization, not an error: read the lumped curve above as the design target and this network as its distributed approximation. The layout draws each stub at its full width straddling the junction, which is geometrically honest but ignores the T-junction discontinuity — a wide low-impedance stub eats real line length, so subtract roughly half its width from each adjacent line before etching."
+        + (mismatched ? zlNote(worstLossDb(f=>stubNetS21dB(stages,fcHz,st.Z0,st.Z0,f), 0.01*fcHz, fcHz), worstLossDb(f=>stubNetS21dB(stages,fcHz,st.Z0,ZL,f), 0.01*fcHz, fcHz), '0–f<sub>c</sub>')
+            + " (The last unit element is already a "+ZL.toFixed(1)+" Ω line, matched to that load.)" : "");
       stages.forEach((stage,i)=>{
         const Wh = microstripSynthWh(stage.Z, st.er);
         const W_mm = Wh*st.h;
         const len_mm = physLenMm(Wh, st.er, fcHz, 45, st.h); // all commensurate lines: theta=45 deg at fc
         if(stage.type==='ue'){
-          segs.push({type:'line', W_mm, L_mm:len_mm, Z:stage.Z, name:`Unit element — ${stage.Z.toFixed(0)} Ω`, label:`W=${W_mm.toFixed(2)} l=${len_mm.toFixed(2)}mm`});
+          segs.push({type:'line', W_mm, L_mm:len_mm, Z:stage.Z, name:`Line ${i+1} — unit element, ${stage.Z.toFixed(0)} Ω`, label:`W=${fmtW(W_mm)} l=${len_mm.toFixed(2)}mm`});
         } else {
-          segs.push({type:'stub', W_mm, L_mm:len_mm, Z:stage.Z, name:`Open stub — ${stage.Z.toFixed(0)} Ω`, label:`W=${W_mm.toFixed(2)} l=${len_mm.toFixed(2)}mm`});
+          segs.push({type:'stub', W_mm, L_mm:len_mm, Z:stage.Z, name:`Stub ${i+1} — open, ${stage.Z.toFixed(0)} Ω`, label:`W=${fmtW(W_mm)} l=${len_mm.toFixed(2)}mm`});
         }
       });
-      $("layoutSvg").innerHTML = stripLayoutSVG(segs, {er:st.er, h:st.h, Z0:st.Z0, feedW_mm:microstripSynthWh(st.Z0,st.er)*st.h});
+      $("layoutSvg").innerHTML = stripLayoutSVG(segs, layOpts);
       $("tagLayout").textContent = segs.length+' segments';
-      // quote the real numbers from THIS design, not a hard-coded example
-      const li = segs.findIndex(x=>x.type==='line');
+      // quote the real numbers from THIS design, not a hard-coded example.
+      // Only a STUB eats line length at a junction; a neighbouring line does not.
+      const li = segs.findIndex((x,i)=>x.type==='line' && ((segs[i-1]||{}).type==='stub' || (segs[i+1]||{}).type==='stub'));
       let vis='';
-      if(li>0 && li<segs.length-1){
-        const exposed = segs[li].L_mm - segs[li-1].W_mm/2 - segs[li+1].W_mm/2;
-        vis = ` — here line ${li+1} is labelled ${segs[li].L_mm.toFixed(2)} mm, but only ${exposed.toFixed(2)} mm of strip is exposed between the two stub edges`;
+      if(li>=0){
+        const nb=[segs[li-1],segs[li+1]].filter(x=>x && x.type==='stub');
+        const exposed = segs[li].L_mm - nb.reduce((a,x)=>a+x.W_mm/2,0);
+        const two = nb.length>1;
+        vis = exposed>0
+          ? ` — here line ${li+1} is labelled ${segs[li].L_mm.toFixed(2)} mm, but only ${exposed.toFixed(2)} mm of strip is exposed beside the stub edge${two?'s':''}`
+          : two
+            ? ` — here the stubs either side of line ${li+1} are so wide that they overlap by ${(-exposed).toFixed(2)} mm, so no strip is exposed at all and this layout is not realisable as drawn`
+            : ` — here the stub beside line ${li+1} is so wide that it covers the whole line, with ${(-exposed).toFixed(2)} mm to spare, so this layout is not realisable as drawn`;
       }
-      $("layoutNote").innerHTML = LAYOUT_NOTES.stub(vis);
+      warnTxt = buildWarnings([feedItem].concat(mismatched?[{name:'Output port', W_mm:fWL, Z:ZL}]:[], segs.map(x=>({...x, name:x.name.split(' — ')[0]}))), fcHz);
+      $("layoutNote").innerHTML = LAYOUT_NOTES.stub(vis) + warnTxt;
       $("cwTabs").style.display='none';
-      $("dimTable").innerHTML = feedCard + segs.map((s,i)=>`<div class="ro"><dt>${s.type==='stub'?'Stub':'Line'} ${i+1}</dt><dd>W=${s.W_mm.toFixed(2)}mm<br>l=${s.L_mm.toFixed(2)}mm<br>εeff=${microstripEffEps(s.W_mm/st.h,st.er).toFixed(3)}</dd></div>`).join('');
+      $("dimTable").innerHTML = feedCard + segs.map((s,i)=>`<div class="ro"><dt>${s.type==='stub'?'Stub':'Line'} ${i+1}</dt><dd>Z=${s.Z.toFixed(1)} Ω<br>W=${fmtW(s.W_mm)}mm<br>l=${s.L_mm.toFixed(2)}mm<br>εeff(f)=${eF(s.W_mm/st.h).toFixed(3)}</dd></div>`).join('') + (mismatched ? portCard : '');
     }
   }
   $("layoutNote").style.display = $("layoutSvg").innerHTML ? '' : 'none';
+  ['ladderSvg','tlSvg','layoutSvg'].forEach(keepLegible);
 
-  /* ---- cross-section: the 50 ohm feed plus every synthesised segment ---- */
-  const feedWmm = microstripSynthWh(st.Z0, st.er)*st.h;
-  const xsecList = [{name:'Feed line — '+st.Z0+' Ω', W_mm:feedWmm, Z:st.Z0}]
-    .concat(segs.map((sg,i)=>({name: sg.name || ((sg.type==='stub'?'Stub ':'Line ')+(i+1)), W_mm:sg.W_mm, Z:sg.Z||st.Z0})));
-  if(st.xsec>=xsecList.length) st.xsec=0;
+  /* ---- cross-section: the feed plus every synthesised strip ----
+     Chip-capacitor pads are footprints, not lines, so they are not listed.
+     The selection is remembered by NAME ("Stub 1", "Section 2"...), so moving
+     a slider keeps you on the same element; if it no longer exists, the feed. */
+  const xsecList = [{key:'Feed line', name:'Feed line — '+st.Z0+' Ω', W_mm:fW, Z:st.Z0}]
+    .concat(segs.filter(sg=>sg.type!=='gap').map(sg=>({...sg, key:sg.name.split(' — ')[0]})))
+    .concat(mismatched && st.filterType!=='bandpass' ? [{key:'Output port', name:'Output port — '+ZL.toFixed(1)+' Ω', W_mm:fWL, Z:ZL}] : []);
+  let pick = xsecList.find(x=>x.key===st.xsecKey) || xsecList[0];
   const sel=$("selXsec");
-  sel.innerHTML = xsecList.map((x,i)=>`<option value="${i}">${x.name}</option>`).join('');
-  sel.value = st.xsec;
-  const pick = xsecList[st.xsec];
-  $("xsecSvg").innerHTML = crossSectionSVG(pick, st.er, st.h, st.filterType==='bandpass'?f0Hz:fcHz);
-  $("tagXsec").textContent = 'εeff = '+microstripEffEps(pick.W_mm/st.h, st.er).toFixed(3)
-    + '  ·  W/h = '+(pick.W_mm/st.h).toFixed(2);
+  sel.innerHTML = xsecList.map(x=>`<option value="${x.key}">${x.name}</option>`).join('');
+  sel.value = pick.key;
+  $("xsecSvg").innerHTML = crossSectionSVG(pick, st.er, st.h, f0Hz);
+  const pWh = pick.W_mm/st.h;
+  $("tagXsec").textContent = pick.eeffE!==undefined
+    ? 'εe/εo = '+pick.eeffE.toFixed(3)+'/'+pick.eeffO.toFixed(3)+'  ·  W/h = '+pWh.toFixed(2)
+    : 'εeff = '+microstripEffEps(pWh, st.er).toFixed(3)+' static, '+eF(pWh).toFixed(3)+' at f  ·  W/h = '+pWh.toFixed(2);
 
+}
+
+/* Wide diagrams keep their text legible on a phone: the host scrolls
+   sideways instead of shrinking 9.5-unit text below ~7 px. */
+function keepLegible(id){
+  const svg=$(id).querySelector('svg'); if(!svg) return;
+  const vbW=svg.viewBox.baseVal.width;
+  svg.style.minWidth = Math.min(840, Math.round(vbW*0.78))+"px";   // 9-unit text >= 7 px, never wider than a desktop column
 }
 
 /* ================= UI wiring ================= */
@@ -1204,7 +1577,7 @@ $("selPreset").addEventListener('change',e=>{
   if(p){ presetKey=k; st.er=p.er; st.h=p.h; } else presetKey='custom';
   render();
 });
-$("selXsec").addEventListener('change',e=>{ st.xsec=+e.target.value; render(); });
+$("selXsec").addEventListener('change',e=>{ st.xsecKey=e.target.value; render(); });
 document.querySelectorAll('#cwTabs .tab').forEach(btn=>{
   btn.addEventListener('click',()=>{
     st.cw=btn.dataset.cw;
