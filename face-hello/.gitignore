@@ -1,0 +1,4 @@
+# Face data and downloaded models stay on the laptop, never on GitHub
+face_fingerprints.json
+voices/
+*.part
