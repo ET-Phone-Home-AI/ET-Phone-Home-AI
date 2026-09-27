@@ -572,6 +572,8 @@ let presetKey='ro4003c';
 const st={filterType:'lowpass', poly:'butterworth', rippleDb:0.5, N:3, fc:2.4, bwPct:10, er:3.55, h:1.524, Z0:50, axis:'auto', xsecKey:'Feed line', cw:'uniform'};
 
 function fmt(v,d){ return v.toFixed(d); }
+// widths below 10 um would round to "0.00": keep two significant figures instead
+function fmtW(mm){ return mm>=0.01 ? mm.toFixed(2) : mm.toPrecision(2); }
 // component values to 3 significant figures: never "0.00 pF"
 function sig3(x){ const a=Math.abs(x); return a>=100 ? x.toFixed(0) : a>=1e-3 ? x.toPrecision(3) : x.toExponential(2); }
 const pFtxt=C_=>sig3(C_*1e12)+' pF', nHtxt=L_=>sig3(L_*1e9)+' nH';
@@ -867,13 +869,13 @@ function stripLayoutSVG(segments, opts){
         if(sg.shorted){ overlays.push({kind:'via', x, y:sg.L_mm, r:Math.max(0.3, sg.W_mm*0.33)}); }
         labels.push({x, y:sg.L_mm, below:true, idx:stubIdx++,
                      dim:{kind:'stub', xj:x, halfW:sg.W_mm/2, len:sg.L_mm},
-                     lines:[`W=${sg.W_mm.toFixed(2)} mm`,`l=${sg.L_mm.toFixed(2)} mm`]});
+                     lines:[`W=${fmtW(sg.W_mm)} mm`,`l=${sg.L_mm.toFixed(2)} mm`]});
       } else {
         shapes.push({x, y:-sg.W_mm/2, w:sg.L_mm, h:sg.W_mm, c:COP, s:COP2});
         grow(x,-sg.W_mm/2,sg.L_mm,sg.W_mm);
         labels.push({x:x+sg.L_mm/2, y:-sg.W_mm/2, above:true, idx:0,
                      dim:{kind:'line', x0:x, x1:x+sg.L_mm},
-                     lines:[`W=${sg.W_mm.toFixed(2)} mm`,`l=${sg.L_mm.toFixed(2)} mm`]});
+                     lines:[`W=${fmtW(sg.W_mm)} mm`,`l=${sg.L_mm.toFixed(2)} mm`]});
         x+=sg.L_mm;
       }
     });
@@ -1224,7 +1226,7 @@ function buildWarnings(items, fHz){
     if(it.W_mm<0.1) why.push(`W = ${(it.W_mm*1000).toFixed(0)} µm is below a 0.1 mm etch limit`);
     if(Wh<0.01) why.push(`W/h = ${Wh.toFixed(4)} is below 0.01`);
     if(Wh>20) why.push(`W/h = ${Wh.toFixed(1)} is above 20`);
-    if(it.W_mm>lg/4) why.push(`W = ${it.W_mm.toFixed(2)} mm is wider than λg/4 = ${(lg/4).toFixed(2)} mm, so it no longer behaves as a quasi-TEM line (a transverse resonance sits in or near the band)`);
+    if(it.W_mm>lg/4) why.push(`W = ${fmtW(it.W_mm)} mm is wider than λg/4 = ${(lg/4).toFixed(2)} mm, so it no longer behaves as a quasi-TEM line (a transverse resonance sits in or near the band)`);
     if(it.s_mm!==undefined && it.s_mm<0.1) why.push(`gap s = ${(it.s_mm*1000).toFixed(0)} µm is below a 0.1 mm etch limit`);
     if(why.length) out.push(`<b>${it.name}</b>: ${why.join('; ')}`);
   });
@@ -1369,7 +1371,7 @@ function computeAndRender(){
       const Zm=Math.sqrt(r.Z0e_a*r.Z0o_a);
       segs.push({type:'coupled', W_mm:r.W_mm, L_mm:r.L_mm, s_mm:r.s_mm, Z:Zm,
                  Z0e_a:r.Z0e_a, Z0o_a:r.Z0o_a, eeffE:r.eeffE, eeffO:r.eeffO,
-                 name:`Section ${i+1} — coupled, Z0e/Z0o ${r.Z0e_a.toFixed(0)}/${r.Z0o_a.toFixed(0)} Ω`, label:`W=${r.W_mm.toFixed(2)} s=${r.s_mm.toFixed(3)} l=${r.L_mm.toFixed(2)}mm`});
+                 name:`Section ${i+1} — coupled, Z0e/Z0o ${r.Z0e_a.toFixed(0)}/${r.Z0o_a.toFixed(0)} Ω`, label:`W=${fmtW(r.W_mm)} s=${r.s_mm.toFixed(3)} l=${r.L_mm.toFixed(2)}mm`});
     });
     $("layoutSvg").innerHTML = stripLayoutSVG(segs, {er:st.er, h:st.h, Z0:st.Z0, feedW_mm:fW});
     $("tagLayout").textContent = segs.length+' coupled sections';
@@ -1419,7 +1421,7 @@ function computeAndRender(){
       $("dimTable").innerHTML = feedCard + secs.map((sc,i)=>
         sc.kind==='C'
           ? `<div class="ro"><dt>Chip cap ${i+1}</dt><dd>C=${pFtxt(sc.C)}<br>0402 pads<br><span style="font-size:10px;opacity:.7">mounted part</span></dd></div>`
-          : `<div class="ro"><dt>Shorted stub ${i+1}</dt><dd>Z=${sc.Z} Ω<br>θ=${sc.thetaDeg.toFixed(1)}°<br>W=${segs[i].W_mm.toFixed(2)}mm<br>l=${segs[i].L_mm.toFixed(2)}mm<br>via ${(Lvia*1e9).toFixed(2)} nH</dd></div>`
+          : `<div class="ro"><dt>Shorted stub ${i+1}</dt><dd>Z=${sc.Z} Ω<br>θ=${sc.thetaDeg.toFixed(1)}°<br>W=${fmtW(segs[i].W_mm)}mm<br>l=${segs[i].L_mm.toFixed(2)}mm<br>via ${(Lvia*1e9).toFixed(2)} nH</dd></div>`
       ).join('') + (mismatched ? portCard : '');
     } else if(st.N>3){
       const Zh=120, Zl=20;
@@ -1446,14 +1448,14 @@ function computeAndRender(){
         const len_mm = physLenMm(Wh, st.er, fcHz, sc.thetaDeg, st.h);
         segs.push({type:'line', W_mm, L_mm:len_mm, Z:sc.Z,
                    name:`${sc.kind==='L'?'High-Z':'Low-Z'} ${i+1} — ${sc.Z} Ω`,
-                   label:`W=${W_mm.toFixed(2)} l=${len_mm.toFixed(2)}mm`});
+                   label:`W=${fmtW(W_mm)} l=${len_mm.toFixed(2)}mm`});
       });
       $("layoutSvg").innerHTML = stripLayoutSVG(segs, layOpts);
       $("tagLayout").textContent = segs.length+' sections';
       warnTxt = buildWarnings([feedItem].concat(mismatched?[{name:'Output port', W_mm:fWL, Z:ZL}]:[], segs.map(x=>({...x, name:x.name.split(' — ')[0]}))), fcHz);
       $("layoutNote").innerHTML = LAYOUT_NOTES.stepped + warnTxt;
       $("cwTabs").style.display='none';
-      $("dimTable").innerHTML = feedCard + segs.map((sg,i)=>`<div class="ro"><dt>${secs[i].kind==='L'?'High-Z':'Low-Z'} ${i+1}</dt><dd>Z=${sg.Z} Ω<br>θ=${secs[i].thetaDeg.toFixed(1)}°<br>W=${sg.W_mm.toFixed(2)}mm<br>l=${sg.L_mm.toFixed(2)}mm</dd></div>`).join('') + (mismatched ? portCard : '');
+      $("dimTable").innerHTML = feedCard + segs.map((sg,i)=>`<div class="ro"><dt>${secs[i].kind==='L'?'High-Z':'Low-Z'} ${i+1}</dt><dd>Z=${sg.Z} Ω<br>θ=${secs[i].thetaDeg.toFixed(1)}°<br>W=${fmtW(sg.W_mm)}mm<br>l=${sg.L_mm.toFixed(2)}mm</dd></div>`).join('') + (mismatched ? portCard : '');
     } else {
       $("tlTitle").textContent="Richard's Transform + Kuroda Stub Equivalent";
       const stubs = richardsStubs(elements, wc);
@@ -1471,9 +1473,9 @@ function computeAndRender(){
         const W_mm = Wh*st.h;
         const len_mm = physLenMm(Wh, st.er, fcHz, 45, st.h); // all commensurate lines: theta=45 deg at fc
         if(stage.type==='ue'){
-          segs.push({type:'line', W_mm, L_mm:len_mm, Z:stage.Z, name:`Line ${i+1} — unit element, ${stage.Z.toFixed(0)} Ω`, label:`W=${W_mm.toFixed(2)} l=${len_mm.toFixed(2)}mm`});
+          segs.push({type:'line', W_mm, L_mm:len_mm, Z:stage.Z, name:`Line ${i+1} — unit element, ${stage.Z.toFixed(0)} Ω`, label:`W=${fmtW(W_mm)} l=${len_mm.toFixed(2)}mm`});
         } else {
-          segs.push({type:'stub', W_mm, L_mm:len_mm, Z:stage.Z, name:`Stub ${i+1} — open, ${stage.Z.toFixed(0)} Ω`, label:`W=${W_mm.toFixed(2)} l=${len_mm.toFixed(2)}mm`});
+          segs.push({type:'stub', W_mm, L_mm:len_mm, Z:stage.Z, name:`Stub ${i+1} — open, ${stage.Z.toFixed(0)} Ω`, label:`W=${fmtW(W_mm)} l=${len_mm.toFixed(2)}mm`});
         }
       });
       $("layoutSvg").innerHTML = stripLayoutSVG(segs, layOpts);
@@ -1495,7 +1497,7 @@ function computeAndRender(){
       warnTxt = buildWarnings([feedItem].concat(mismatched?[{name:'Output port', W_mm:fWL, Z:ZL}]:[], segs.map(x=>({...x, name:x.name.split(' — ')[0]}))), fcHz);
       $("layoutNote").innerHTML = LAYOUT_NOTES.stub(vis) + warnTxt;
       $("cwTabs").style.display='none';
-      $("dimTable").innerHTML = feedCard + segs.map((s,i)=>`<div class="ro"><dt>${s.type==='stub'?'Stub':'Line'} ${i+1}</dt><dd>Z=${s.Z.toFixed(1)} Ω<br>W=${s.W_mm.toFixed(2)}mm<br>l=${s.L_mm.toFixed(2)}mm<br>εeff(f)=${eF(s.W_mm/st.h).toFixed(3)}</dd></div>`).join('') + (mismatched ? portCard : '');
+      $("dimTable").innerHTML = feedCard + segs.map((s,i)=>`<div class="ro"><dt>${s.type==='stub'?'Stub':'Line'} ${i+1}</dt><dd>Z=${s.Z.toFixed(1)} Ω<br>W=${fmtW(s.W_mm)}mm<br>l=${s.L_mm.toFixed(2)}mm<br>εeff(f)=${eF(s.W_mm/st.h).toFixed(3)}</dd></div>`).join('') + (mismatched ? portCard : '');
     }
   }
   $("layoutNote").style.display = $("layoutSvg").innerHTML ? '' : 'none';
