@@ -640,6 +640,11 @@ def recognize_video(people):
     try:
         from ffpyplayer.player import MediaPlayer          # pip install ffpyplayer
         sound = MediaPlayer(path, ff_opts={"vn": True, "paused": True})   # sound only, wait for us
+        # Wait until the sound player has opened the file. Asking it for the time
+        # before that can crash the whole program (a bug inside ffpyplayer).
+        opened = time.time()
+        while not sound.get_metadata().get("duration") and time.time() - opened < 5:
+            time.sleep(0.01)
     except Exception:
         sound = None
         print("(No sound: run  pip install ffpyplayer  to hear the clip.)")
