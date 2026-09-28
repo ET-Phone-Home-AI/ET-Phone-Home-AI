@@ -1,3 +1,6 @@
 # Biometric face data from face_id.py - never commit
 faces.npz
 __pycache__/
+face_fingerprints.json
+pipeline_views/
+voices/
