@@ -17,6 +17,7 @@ import tempfile                               # a scratch file for each spoken g
 import threading                              # speaks in the background so video never freezes
 import wave                                   # writes the voice into a .wav sound file
 import shutil                                 # deletes the pictures folder
+from collections import deque                 # a line-up of video frames waiting to be shown
 from pathlib import Path
 import time                                   # countdown + frames-per-second
 import cv2                                    # OpenCV: webcam, images, drawing
@@ -526,23 +527,26 @@ def iou(a, b):
     return inter / (area(a) + area(b) - inter + 1e-6)
 
 
-def analyze_clip(path, names, matrix, notes, state):
-    """THE AI HALF (runs in the background). For every 3rd frame it writes into
-    notes[frame number] which faces are there, where, who they look most like and
-    the score. It does NOT decide "name or Unknown": the player does that when
-    drawing, so the + / - threshold keys work instantly."""
-    video = cv2.VideoCapture(path)
+def analyze_clip(video, notes, frames, state, names, matrix):
+    """THE AI HALF (runs in the background). It is the ONLY part that reads the
+    video file: every frame goes into the `frames` line-up for the player.
+    For every 3rd frame it also writes into notes[frame number] which faces are
+    there, where, who they look most like and the score. It does NOT decide
+    "name or Unknown": the player does that when drawing, so the + / - keys
+    work instantly."""
     tracks, next_id, last_colors, frame_no = [], 0, None, -1
+    max_waiting = int((LOOK_AHEAD + 3) * state["fps"])    # frames kept in memory (a few hundred MB)
     while not state["stop"]:
-        if not video.grab():                              # grab = step one frame WITHOUT decoding (fast)
-            break
-        frame_no += 1
-        if frame_no % ANALYZE_EVERY:
-            continue
-        ok, frame = video.retrieve()                      # decode only the frames we analyze
+        while len(frames) > max_waiting and not state["stop"]:
+            time.sleep(0.01)                              # far enough ahead: let the player catch up
+        ok, frame = video.read()
         if not ok:
-            break
+            break                                         # end of the clip
+        frame_no += 1
         frame = shrink(frame)
+        if frame_no % ANALYZE_EVERY:                      # not a frame the AI looks at
+            frames.append((frame_no, frame))
+            continue
         t = frame_no / state["fps"]
         colors = colors_of(frame)
         cut = is_cut(last_colors, colors)
@@ -576,8 +580,8 @@ def analyze_clip(path, names, matrix, notes, state):
         tracks = new_tracks
         notes[frame_no] = {"cut": cut, "faces": [(tr["id"], tr["box"].copy(), tr["name"],
                                                   tr["score"], tr["face"]) for tr in tracks]}
+        frames.append((frame_no, frame))
         state["analyzed"] = frame_no                      # "I am done up to here"
-    video.release()
     state["finished"] = True
 
 
@@ -621,9 +625,12 @@ def recognize_video(people):
     stamp = time.strftime("%Y%m%d-%H%M%S")
 
     # Start the AI half in the background and give it a head start
-    notes = {}
+    # The video file is read in ONE place only (the AI half). Two readers at once,
+    # next to the sound player, can crash the program on some computers.
+    notes, frames = {}, deque()                           # frames = the line-up waiting to be shown
     state = {"stop": False, "finished": False, "analyzed": -1, "fps": fps, "best": {}}
-    worker = threading.Thread(target=analyze_clip, args=(path, names, matrix, notes, state), daemon=True)
+    worker = threading.Thread(target=analyze_clip, args=(video, notes, frames, state, names, matrix),
+                              daemon=True)
     worker.start()
     print(f"The AI is getting a {LOOK_AHEAD:.0f}-second head start...")
     while not state["finished"] and state["analyzed"] < LOOK_AHEAD * fps:
@@ -669,20 +676,16 @@ def recognize_video(people):
             if sound:
                 sound.set_pause(False)
 
-        # 2) Picture late compared with the sound? Skip frames WITHOUT decoding them.
-        if (frame_no + 1) / fps < clip_clock() - 0.1:
-            if not video.grab():
-                break
-            frame_no += 1
+        if not frames:
+            break                                          # end of the clip
+        frame_no, frame = frames.popleft()                 # the next frame in the line-up
+        t = frame_no / fps
+
+        # 2) Picture late compared with the sound? Skip this frame (don't show it).
+        if t < clip_clock() - 0.1:
             skipped += 1
             continue
 
-        ok, frame = video.read()
-        if not ok:
-            break                                          # end of the clip
-        frame_no += 1
-        t = frame_no / fps
-        frame = shrink(frame)
         colors = colors_of(frame)                          # a cut on THIS frame? hide old boxes now
         if is_cut(last_colors, colors):
             last_cut = frame_no
@@ -728,8 +731,10 @@ def recognize_video(people):
             sound.set_pause(True)
         except Exception:
             pass
-        # closing can be slow on some computers, so do it in the background
-        threading.Thread(target=sound.close_player, daemon=True).start()
+        # closing can be slow on some computers: wait at most 3 seconds for it
+        closer = threading.Thread(target=sound.close_player, daemon=True)
+        closer.start()
+        closer.join(timeout=3)
     cv2.destroyAllWindows()
     if skipped:
         print(f"(Skipped {skipped} of {frame_no + 1} frames to keep the picture with the sound.)")
