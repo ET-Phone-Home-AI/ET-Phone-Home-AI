@@ -37,16 +37,33 @@ CAMERA_SIZE = (640, 480)   # SPEED: smaller camera frames = less work per frame
 GREET_AGAIN_AFTER = 3      # seconds out of view before it counts as "leaving"
 VOICE_NAME = "en_GB-jenny_dioco-medium"   # female voices: en_GB-jenny_dioco-medium, en_US-lessac-medium,
                                          # en_US-amy-medium
+USE_GPU = True             # SPEED: use the graphics chip if onnxruntime-directml is installed
 SAVE_PIPELINE_VIEWS = True # save pictures showing each step the AI took (False = off)
 VIEWS_DIR = Path("pipeline_views")     # those pictures (they show faces!) go ONLY here
 # ----------------------------------------------------------
 
 print("Loading face models... (a few seconds)")
-# Only turn on the two parts we need: finding faces + making fingerprints
-app = FaceAnalysis(name="buffalo_l",
-                   providers=["CPUExecutionProvider"],
-                   allowed_modules=["detection", "recognition"])
-app.prepare(ctx_id=-1, det_size=(320, 320))   # ctx_id=-1 means "use the CPU"
+# SPEED: use the laptop's graphics chip (GPU) if we can. On Windows that is
+# "DirectML" and works with Intel, AMD and NVIDIA graphics. To turn it on, once:
+#   pip uninstall -y onnxruntime
+#   pip install onnxruntime-directml
+# Without it (or if anything goes wrong) everything simply runs on the CPU.
+import onnxruntime
+use_gpu = USE_GPU and "DmlExecutionProvider" in onnxruntime.get_available_providers()
+try:
+    # Only turn on the two parts we need: finding faces + making fingerprints
+    app = FaceAnalysis(name="buffalo_l",
+                       providers=(["DmlExecutionProvider"] if use_gpu else []) + ["CPUExecutionProvider"],
+                       allowed_modules=["detection", "recognition"])
+    app.prepare(ctx_id=0 if use_gpu else -1,   # ctx_id=-1 FORCES the CPU, 0 = first GPU
+                det_size=(320, 320))
+except Exception as err:                       # the GPU did not work: fall back to the CPU
+    print(f"GPU did not start ({err}). Using the CPU.")
+    use_gpu = False
+    app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"],
+                       allowed_modules=["detection", "recognition"])
+    app.prepare(ctx_id=-1, det_size=(320, 320))
+print("Face AI is running on the", "GPU (DirectML)" if use_gpu else "CPU")
 
 # ---------- getting the voice files (first run only) ----------
 def voice_url(file_name):
@@ -466,11 +483,128 @@ def run_recognition(people):
 
 
 # ---------- menu option 7: recognize faces in a video clip ----------
+# A video FILE is not a webcam: the future frames already exist. So the AI
+# reads the clip on its own and works AHEAD of what you see and hear, writing
+# down where the faces are. The player then shows frame 100 with the boxes the
+# AI found ON frame 100, while the sound decides the timing. Nothing drifts.
+ANALYZE_EVERY = 3      # the AI looks at every 3rd frame (10 times a second at 30 fps)
+LOOK_AHEAD = 2.0       # seconds the AI starts ahead of playback (bigger = fewer pauses)
+RECHECK_EVERY = 1.0    # seconds: re-check WHO a face we are following is this often
 
 
 def clock(seconds):
     """Turn 75.4 into '1:15' for the report."""
     return f"{int(seconds) // 60}:{int(seconds) % 60:02d}"
+
+
+def shrink(frame):
+    """Big frames cost a lot to process and show: shrink to at most 1280 wide."""
+    if frame.shape[1] > 1280:
+        k = 1280 / frame.shape[1]
+        frame = cv2.resize(frame, None, fx=k, fy=k)
+    return frame
+
+
+def colors_of(frame):
+    """A tiny summary of a frame's colors. It changes a lot at a new shot (a cut)
+    but only a little when people move."""
+    hsv = cv2.cvtColor(cv2.resize(frame, (160, 90)), cv2.COLOR_BGR2HSV)
+    hist = cv2.calcHist([hsv], [0, 1], None, [16, 8], [0, 180, 0, 256])
+    return cv2.normalize(hist, hist)
+
+
+def is_cut(before, after):
+    return before is not None and cv2.compareHist(before, after, cv2.HISTCMP_BHATTACHARYYA) > 0.3
+
+
+def iou(a, b):
+    """How much two boxes overlap (0 = not at all, 1 = the same box)."""
+    x1, y1 = max(a[0], b[0]), max(a[1], b[1])
+    x2, y2 = min(a[2], b[2]), min(a[3], b[3])
+    inter = max(0, x2 - x1) * max(0, y2 - y1)
+    area = lambda r: (r[2] - r[0]) * (r[3] - r[1])
+    return inter / (area(a) + area(b) - inter + 1e-6)
+
+
+def analyze_clip(path, names, matrix, notes, state):
+    """THE AI HALF (runs in the background). For every 3rd frame it writes into
+    notes[frame number] which faces are there, where, who they look most like and
+    the score. It does NOT decide "name or Unknown": the player does that when
+    drawing, so the + / - threshold keys work instantly."""
+    video = cv2.VideoCapture(path)
+    tracks, next_id, last_colors, frame_no = [], 0, None, -1
+    while not state["stop"]:
+        if not video.grab():                              # grab = step one frame WITHOUT decoding (fast)
+            break
+        frame_no += 1
+        if frame_no % ANALYZE_EVERY:
+            continue
+        ok, frame = video.retrieve()                      # decode only the frames we analyze
+        if not ok:
+            break
+        frame = shrink(frame)
+        t = frame_no / state["fps"]
+        colors = colors_of(frame)
+        cut = is_cut(last_colors, colors)
+        last_colors = colors
+        if cut:                                           # new shot: forget the faces we followed
+            tracks = []
+        # STEP 1: FIND every face (fast)
+        bboxes, kpss = app.models["detection"].detect(frame, max_num=0, metric="default")
+        new_tracks = []
+        for i in range(bboxes.shape[0]):
+            face = Face(bbox=bboxes[i, :4], kps=kpss[i], det_score=bboxes[i, 4])
+            old = max(tracks, key=lambda tr: iou(tr["box"], face.bbox), default=None)
+            if old is not None and iou(old["box"], face.bbox) > 0.3:   # the same face as last time
+                tracks.remove(old)                        # each old face is used once
+                tr = dict(old, box=face.bbox)
+            else:                                         # a new face: give it an ID number
+                tr = {"id": next_id, "box": face.bbox, "name": "Unknown", "score": 0.0,
+                      "checked": -99.0, "face": None}
+                next_id += 1
+            # STEP 2: ask WHO (slow) for new faces, and re-check old ones now and then
+            if t - tr["checked"] >= RECHECK_EVERY:
+                app.models["recognition"].get(frame, face)   # the 512 numbers
+                tr["face"], tr["checked"] = face, t
+                if names:
+                    scores = matrix @ face.normed_embedding
+                    j = int(np.argmax(scores))
+                    tr["name"], tr["score"] = names[j], float(scores[j])
+                    if tr["score"] > state["best"].get(tr["name"], (-1.0,))[0]:
+                        state["best"][tr["name"]] = (tr["score"], frame, face)   # their best moment
+            new_tracks.append(tr)
+        tracks = new_tracks
+        notes[frame_no] = {"cut": cut, "faces": [(tr["id"], tr["box"].copy(), tr["name"],
+                                                  tr["score"], tr["face"]) for tr in tracks]}
+        state["analyzed"] = frame_no                      # "I am done up to here"
+    video.release()
+    state["finished"] = True
+
+
+def boxes_for(frame_no, notes, last_cut):
+    """Boxes for ANY frame. The AI only looked at every 3rd frame, so each box
+    slides smoothly from where it was on the analyzed frame before this one to
+    where it is on the analyzed frame after it."""
+    a = frame_no - frame_no % ANALYZE_EVERY               # analyzed frame at or before this one
+    before, after = notes.get(a), notes.get(a + ANALYZE_EVERY)
+    if before is None or last_cut > a:                    # a cut since then: those faces are gone
+        return []
+    if after is None or after["cut"]:
+        return [(box, n, s, f) for _, box, n, s, f in before["faces"]]
+    w = (frame_no - a) / ANALYZE_EVERY                    # 0 = at "before", 1 = at "after"
+    later = {fid: box for fid, box, *_ in after["faces"]}
+    return [(box + (later[fid] - box) * w if fid in later else box, n, s, f)
+            for fid, box, n, s, f in before["faces"]]
+
+
+def draw_boxes(frame, boxes):
+    for box, name, score, _ in boxes:
+        shown = name if score >= THRESHOLD else "Unknown"     # decided NOW, with today's threshold
+        x1, y1, x2, y2 = box.astype(int)
+        color = (0, 200, 0) if shown != "Unknown" else (0, 0, 255)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+        cv2.putText(frame, f"{shown}  {score:.2f}", (x1, max(20, y1 - 10)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
 
 
 def recognize_video(people):
@@ -484,96 +618,16 @@ def recognize_video(people):
     total = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
     names = list(people)
     matrix = np.array([people[n]["vector"] for n in names]).reshape(len(names), 512)
-
-    # Save a copy of the clip with the boxes drawn in (it shows faces, so it goes in VIEWS_DIR)
-    VIEWS_DIR.mkdir(exist_ok=True)
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    out_path = VIEWS_DIR / safe(f"video_{stamp}_{Path(path).stem}_boxes.mp4")
-    writer = None
 
-    seen_at = {}        # name -> list of times (seconds) they were seen
-    best = {}           # name -> (score, frame, face) of their best moment
-
-    # SMOOTH PLAYBACK: the AI works in the BACKGROUND (a "thread") on the newest
-    # frame it is given, while the main loop just plays the video at normal speed
-    # and draws the latest boxes the AI finished. The video never waits for the AI.
-    shared = {"frame": None, "t": 0.0, "results": [], "results_t": -1.0, "last_frame": None,
-              "last_faces": [], "stop": False, "cut_t": -1.0}
-    lock = threading.Lock()                               # stops the two sides colliding
-
-    RECHECK_EVERY = 2.0   # seconds: re-check WHO a tracked face is this often
-
-    def iou(a, b):
-        """How much two boxes overlap (0 = not at all, 1 = the same box)."""
-        x1, y1 = max(a[0], b[0]), max(a[1], b[1])
-        x2, y2 = min(a[2], b[2]), min(a[3], b[3])
-        inter = max(0, x2 - x1) * max(0, y2 - y1)
-        area = lambda r: (r[2] - r[0]) * (r[3] - r[1])
-        return inter / (area(a) + area(b) - inter + 1e-6)
-
-    def ai_worker():
-        while not shared["stop"]:
-            try:
-                ai_steps()
-            except Exception as err:                      # never let the AI die silently
-                print(f"(AI hiccup, continuing: {err})")
-
-    def ai_steps():
-        """Two-step AI, like a detective:
-        1) FIND faces in every frame it can (fast), and follow them from frame to frame.
-        2) ask WHO each face is (slow) only for new faces, and re-check each face every 2 seconds."""
-        tracks = []           # faces we are following: box, name, score, when last checked
-        tracks_t = -1.0       # clip time of the frame the tracks came from
-        while not shared["stop"]:
-            with lock:
-                frame, t, cut_t = shared["frame"], shared["t"], shared["cut_t"]
-                shared["frame"] = None                    # take the frame waiting for us
-            if frame is None:
-                time.sleep(0.005)                         # nothing new yet
-                continue
-            if tracks_t < cut_t <= t:                     # a new shot started: forget old faces
-                tracks = []
-            bboxes, kpss = app.models["detection"].detect(frame, max_num=0, metric="default")
-            new_tracks = []
-            for i in range(bboxes.shape[0]):              # STEP 1: every face found
-                face = Face(bbox=bboxes[i, :4], kps=kpss[i], det_score=bboxes[i, 4])
-                old = max(tracks, key=lambda tr: iou(tr["box"], face.bbox), default=None)
-                if old and iou(old["box"], face.bbox) > 0.3:   # same face as before: keep its name
-                    tr = dict(old, box=face.bbox, face=old["face"])
-                    tracks = [x for x in tracks if x is not old]   # each old face is used once
-                else:
-                    tr = {"box": face.bbox, "name": None, "score": 0.0, "checked": -99.0, "face": None}
-                tr["new_face"] = face
-                new_tracks.append(tr)
-            # STEP 2: ask WHO for the faces that need it (new ones first, biggest first)
-            todo = [tr for tr in new_tracks if t - tr["checked"] >= RECHECK_EVERY]
-            todo.sort(key=lambda tr: (tr["name"] is not None, -(tr["box"][2] - tr["box"][0])))
-            for tr in todo[:1]:                           # one per frame keeps the boxes moving
-                face = tr["new_face"]
-                app.models["recognition"].get(frame, face)   # the 512 numbers
-                if not names:
-                    tr.update(name="Unknown", score=0.0, checked=t, face=face)
-                    continue
-                scores = matrix @ face.normed_embedding
-                i = int(np.argmax(scores))
-                score = float(scores[i])
-                tr.update(name=names[i] if score >= THRESHOLD else "Unknown", score=score,
-                          checked=t, face=face)
-                if tr["name"] != "Unknown" and score > best.get(tr["name"], (0,))[0]:
-                    best[tr["name"]] = (score, frame, face)   # remember their best frame
-            tracks, tracks_t = new_tracks, t
-            for tr in tracks:                             # for the report: who is on screen now
-                if tr["name"] not in (None, "Unknown"):
-                    seen_at.setdefault(tr["name"], []).append(t)
-            results = [(tr["box"].astype(int), tr["name"] or "Checking...", tr["score"]) for tr in tracks]
-            with lock:
-                shared["results"], shared["results_t"] = results, t
-                shared["last_frame"] = frame
-                shared["last_faces"] = [tr["face"] for tr in tracks if tr["face"] is not None]
-
-    worker = threading.Thread(target=ai_worker, daemon=True)
+    # Start the AI half in the background and give it a head start
+    notes = {}
+    state = {"stop": False, "finished": False, "analyzed": -1, "fps": fps, "best": {}}
+    worker = threading.Thread(target=analyze_clip, args=(path, names, matrix, notes, state), daemon=True)
     worker.start()
-    print("Playing. Keys in the video window: + / - threshold, S save a picture, Q stop.")
+    print(f"The AI is getting a {LOOK_AHEAD:.0f}-second head start...")
+    while not state["finished"] and state["analyzed"] < LOOK_AHEAD * fps:
+        time.sleep(0.05)
 
     # SOUND: OpenCV only reads pictures, so a small player plays the clip's sound.
     try:
@@ -583,6 +637,7 @@ def recognize_video(people):
         sound = None
         print("(No sound: run  pip install ffpyplayer  to hear the clip.)")
 
+    start = time.time()
     def clip_clock():
         """Where the SOUND is right now (seconds). The picture follows this clock.
         If the sound player can't tell us, use the real clock instead."""
@@ -593,69 +648,70 @@ def recognize_video(people):
                 return p
         return wall
 
-    frame_no, last_show, prev_tiny, cut_t = 0, 0.0, None, -1.0
+    def ai_has_reached(n):
+        # the AI must have analyzed the frame AFTER n, so boxes can slide toward it
+        return state["finished"] or state["analyzed"] >= n + ANALYZE_EVERY
+
+    print("Playing. Keys in the video window: + / - threshold, S save a picture, Q stop.")
     if sound:
         sound.set_pause(False)                             # start sound and picture together
     start = time.time()
+    frame_no, last_cut, last_colors, skipped = -1, -1, None, 0
     while True:
+        # 1) The AI fell behind? Pause sound AND picture until it is ahead again.
+        if not ai_has_reached(frame_no + 1):
+            paused_at = time.time()
+            if sound:
+                sound.set_pause(True)
+            while not ai_has_reached(frame_no + 1):
+                cv2.waitKey(20)                            # keeps the window alive
+            start += time.time() - paused_at               # the clock did not move while paused
+            if sound:
+                sound.set_pause(False)
+
+        # 2) Picture late compared with the sound? Skip frames WITHOUT decoding them.
+        if (frame_no + 1) / fps < clip_clock() - 0.1:
+            if not video.grab():
+                break
+            frame_no += 1
+            skipped += 1
+            continue
+
         ok, frame = video.read()
         if not ok:
             break                                          # end of the clip
-        t = frame_no / fps                                 # where the picture is, in seconds
         frame_no += 1
-
-        # Big frames cost a lot to process, show and save: shrink to at most 1280 wide
-        if frame.shape[1] > 1280:
-            k = 1280 / frame.shape[1]
-            frame = cv2.resize(frame, None, fx=k, fy=k)
-
-        # SCENE CUT? Compare the colors of this frame with the last one.
-        # Colors change a lot at a new shot but little when people move,
-        # so old boxes can disappear the moment the shot changes.
-        hsv = cv2.cvtColor(cv2.resize(frame, (160, 90)), cv2.COLOR_BGR2HSV)
-        tiny = cv2.calcHist([hsv], [0, 1], None, [16, 8], [0, 180, 0, 256])
-        cv2.normalize(tiny, tiny)
-        if prev_tiny is not None and cv2.compareHist(prev_tiny, tiny, cv2.HISTCMP_BHATTACHARYYA) > 0.3:
-            cut_t = t
-        prev_tiny = tiny
-
-        with lock:                                         # give the AI the NEWEST frame
-            shared["frame"], shared["t"], shared["cut_t"] = frame.copy(), t, cut_t
-            results, results_t = shared["results"], shared["results_t"]
-        # Only draw boxes from THIS shot that are less than a second old
-        if results_t < cut_t or t - results_t > 1.0:
-            results = []
-        for (x1, y1, x2, y2), name, score in results:
-            color = {"Unknown": (0, 0, 255), "Checking...": (0, 220, 255)}.get(name, (0, 200, 0))
-            label = name if name == "Checking..." else f"{name}  {score:.2f}"
-            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-            cv2.putText(frame, label, (x1, max(20, y1 - 10)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+        t = frame_no / fps
+        frame = shrink(frame)
+        colors = colors_of(frame)                          # a cut on THIS frame? hide old boxes now
+        if is_cut(last_colors, colors):
+            last_cut = frame_no
+        last_colors = colors
+        clean = frame.copy()                               # without boxes, for the S pictures
+        boxes = boxes_for(frame_no, notes, last_cut)
+        draw_boxes(frame, boxes)
         cv2.putText(frame, f"Threshold {THRESHOLD:.2f} | {clock(t)} / {clock(total / fps)} | + - S Q",
                     (10, frame.shape[0] - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-        if writer is None:
-            h, w = frame.shape[:2]
-            writer = cv2.VideoWriter(str(out_path), cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
-        writer.write(frame)
+        cv2.imshow("FaceHello", frame)
 
-        # KEEP PICTURE AND SOUND TOGETHER
-        ahead = t - clip_clock()                           # + = picture early, - = picture late
-        if ahead < -0.1 and time.time() - last_show < 0.25:
-            key = cv2.waitKey(1) & 0xFF                    # late: skip showing to catch up
-        else:
-            cv2.imshow("FaceHello", frame)
-            last_show = time.time()
-            wait_ms = int((ahead + 1 / fps) * 1000)        # early: wait for the sound
-            key = cv2.waitKey(max(1, min(wait_ms, 100))) & 0xFF   # waiting here keeps the window alive
+        # 3) Picture early? Wait until the sound reaches this frame (keys still work).
+        key = 255
+        while True:
+            left = t - clip_clock()
+            k = cv2.waitKey(max(1, min(int(left * 1000), 20))) & 0xFF
+            if k != 255:
+                key = k
+            if left <= 0.02:
+                break
 
         if key == ord("s") and SAVE_PIPELINE_VIEWS:
-            with lock:
-                snap_frame, snap_faces = shared["last_frame"], shared["last_faces"]
-            for i, face in enumerate(snap_faces, 1):
+            for i, (_, _, _, face) in enumerate(boxes, 1):
+                if face is None:
+                    continue
                 scores = {n: float(v) for n, v in zip(names, matrix @ face.normed_embedding)}
                 top = max(scores, key=scores.get) if scores else "Unknown"
                 who = top if scores and scores[top] >= THRESHOLD else "Unknown"
-                save_pipeline_view(snap_frame, face, f"How FaceHello recognized {who} at {clock(t)}",
+                save_pipeline_view(clean, face, f"How FaceHello recognized {who} at {clock(t)}",
                                    f"video_{stamp}_snap{frame_no}_face{i}_{who}.png", scores=scores)
         if key == ord("q"):
             break
@@ -664,11 +720,9 @@ def recognize_video(people):
         elif key in (ord("-"), ord("_")):
             THRESHOLD = max(0.05, THRESHOLD - 0.01)
 
-    shared["stop"] = True                                  # tell the AI to finish
+    state["stop"] = True                                   # tell the AI to finish
     worker.join(timeout=5)
     video.release()
-    if writer:
-        writer.release()
     if sound:                                              # stop the sound
         try:
             sound.set_pause(True)
@@ -677,32 +731,64 @@ def recognize_video(people):
         # closing can be slow on some computers, so do it in the background
         threading.Thread(target=sound.close_player, daemon=True).start()
     cv2.destroyAllWindows()
+    if skipped:
+        print(f"(Skipped {skipped} of {frame_no + 1} frames to keep the picture with the sound.)")
 
-    # ----- the report -----
+    # ----- the report (uses the threshold you ended with) -----
     print(f"\n--- REPORT for {Path(path).name} (threshold {THRESHOLD:.2f}) ---")
+    seen_at = {}                                           # name -> times (seconds) they were seen
+    for n in sorted(notes):
+        for _, _, name, score, _ in notes[n]["faces"]:
+            if name != "Unknown" and score >= THRESHOLD:
+                seen_at.setdefault(name, []).append(n / fps)
     if not seen_at:
         print("  Nobody enrolled was found in this clip.")
     gap = 1.5                                              # a break longer than 1.5 s starts a new scene
     for name, times in seen_at.items():
-        scenes, start, prev = [], times[0], times[0]
+        scenes, begin, prev = [], times[0], times[0]
         on_screen = 0.0
         for x in times[1:] + [None]:
             if x is None or x - prev > gap:                # scene ended
-                end = prev + 0.2
-                scenes.append(f"{clock(start)}-{clock(end)}")
-                on_screen += end - start                   # add up the length of each scene
+                end = prev + ANALYZE_EVERY / fps
+                scenes.append(f"{clock(begin)}-{clock(end)}")
+                on_screen += end - begin                   # add up the length of each scene
                 if x is not None:
-                    start = x
+                    begin = x
             if x is not None:
                 prev = x
-        print(f"  {name}: about {on_screen:.1f} s on screen, best score {best[name][0]:.2f}")
+        score, frame, face = state["best"][name]
+        print(f"  {name}: about {on_screen:.1f} s on screen, best score {score:.2f}")
         print(f"     appears at {', '.join(scenes)}")
         if SAVE_PIPELINE_VIEWS:                            # picture of their best moment
-            score, frame, face = best[name]
             scores = {n: float(v) for n, v in zip(names, matrix @ face.normed_embedding)}
             save_pipeline_view(frame, face, f"How FaceHello found {name} in {Path(path).name}",
                                f"video_{stamp}_best_{name}.png", scores=scores)
-    print(f"  video with boxes saved: {out_path}")
+
+    # ----- save a copy with the boxes drawn in (after playback, so it never slows the show) -----
+    if SAVE_PIPELINE_VIEWS and notes:
+        VIEWS_DIR.mkdir(exist_ok=True)
+        out_path = VIEWS_DIR / safe(f"video_{stamp}_{Path(path).stem}_boxes.mp4")
+        print("Saving the video with boxes (no sound)...")
+        video, writer = cv2.VideoCapture(path), None
+        last_n, last_cut, last_colors = max(notes), -1, None
+        for n in range(last_n + 1):
+            ok, frame = video.read()
+            if not ok:
+                break
+            frame = shrink(frame)
+            colors = colors_of(frame)
+            if is_cut(last_colors, colors):
+                last_cut = n
+            last_colors = colors
+            draw_boxes(frame, boxes_for(n, notes, last_cut))
+            if writer is None:
+                h, w = frame.shape[:2]
+                writer = cv2.VideoWriter(str(out_path), cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
+            writer.write(frame)
+        video.release()
+        if writer:
+            writer.release()
+        print(f"  video with boxes saved: {out_path}")
 
 
 # ---------- menu options 4, 5, 6 ----------
