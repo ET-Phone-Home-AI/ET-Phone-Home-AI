@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="TekStyle — where science meets motherhood. Advanced maternity wear inspired by frequency-selective textile engineering.">
+<title>TekStyle | Where Science Meets Motherhood</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- Icon sprite (Lucide, ISC licence) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 12h16"/><path d="M4 6h16"/><path d="M4 18h16"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></symbol>
+  <symbol id="i-flask" viewBox="0 0 24 24"><path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+</svg>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="brand" href="#home" aria-label="TekStyle home"><span class="brand-symbol">S<span class="brand-slash"></span></span><span class="brand-word">TEKSTYLE</span></a>
+    <nav class="nav" id="nav" aria-label="Main navigation">
+      <a href="#home" class="active">Home</a>
+      <a href="#product">Product</a>
+      <a href="#technology">Technology</a>
+      <a href="#science">Science</a>
+      <a href="#story">Story</a>
+      <a href="#faq">FAQ</a>
+      <a href="#contact">Contact</a>
+    </nav>
+    <button class="join" data-open-modal>Join Waitlist <svg class="icon"><use href="#i-arrow"/></svg></button>
+    <button class="mobile-menu" id="menu-btn" aria-label="Open menu" aria-expanded="false" aria-controls="nav"><svg class="icon"><use href="#i-menu"/></svg></button>
+  </div>
+</header>
+
+<main id="home">
+  <section class="hero" aria-labelledby="headline">
+    <div class="hero-image" role="img" aria-label="Expecting mother wearing a black full-coverage TekStyle belly wrap and looking at a smartphone"></div>
+    <div class="hero-gradient"></div>
+    <div class="hero-content">
+      <div class="eyebrow"><span></span>ADVANCED MATERNITY WEAR</div>
+      <h1 id="headline">Where science<br><em>meets motherhood.</em></h1>
+      <p>A new approach to maternity wear, bringing advanced frequency-selective textile engineering into a comfortable, thoughtfully designed wrap for modern motherhood.</p>
+      <div class="hero-actions">
+        <a class="btn primary" href="#product">Discover TekStyle <svg class="icon"><use href="#i-arrow"/></svg></a>
+        <a class="btn secondary" href="#technology">Explore the Technology <svg class="icon"><use href="#i-arrow"/></svg></a>
+      </div>
+      <div class="hero-points">
+        <div><svg class="icon"><use href="#i-shield"/></svg><span>Research-<br>Inspired Design</span></div>
+        <div><svg class="icon"><use href="#i-leaf"/></svg><span>Everyday<br>Comfort</span></div>
+        <div><svg class="icon"><use href="#i-heart"/></svg><span>Designed<br>for You</span></div>
+      </div>
+    </div>
+    <div class="hero-aside"><span></span>MODERN<br>PROTECTION<br>FOR BRIGHTER<br>TOMORROWS</div>
+  </section>
+
+  <section class="feature-section" id="product">
+    <div class="section-eyebrow"><span></span>MOTHERHOOD DESERVES MORE<span></span></div>
+    <div class="features">
+      <article class="feature-card">
+        <img src="assets/comfort.jpg" alt="Black full-coverage belly wrap worn during pregnancy">
+        <div class="round-icon"><svg class="icon"><use href="#i-leaf"/></svg></div>
+        <div class="feature-copy"><h3>Comfort First</h3><p>Ultra-soft, breathable, and designed to move with you through every stage.</p></div>
+      </article>
+      <article class="feature-card">
+        <img src="assets/fabric.jpg" alt="Close-up of the black fabric shown in the approved TekStyle concept artwork">
+        <div class="round-icon"><svg class="icon"><use href="#i-layers"/></svg></div>
+        <div class="feature-copy"><h3>Engineered Design</h3><p>Advanced frequency-selective textile engineering, thoughtfully built for everyday wear.</p></div>
+      </article>
+      <article class="feature-card">
+        <img src="assets/innovation.jpg" alt="Expecting mother resting comfortably wearing her full-coverage wrap">
+        <div class="round-icon"><svg class="icon"><use href="#i-heart"/></svg></div>
+        <div class="feature-copy"><h3>Thoughtful Innovation</h3><p>A modern approach to maternal wellness — because your peace of mind matters.</p></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="product-section" id="technology">
+    <div class="product-copy">
+      <div class="eyebrow"><span></span>THE TEKSTYLE DIFFERENCE</div>
+      <h2>Advanced<br>protection.<br><em>Everyday comfort.</em></h2>
+      <p>Our patented, frequency-selective textile technology helps reduce exposure to certain electromagnetic frequencies — without sacrificing comfort, style, or mobility.</p>
+      <a href="#science" class="btn primary small">Explore the Technology <svg class="icon"><use href="#i-arrow"/></svg></a>
+    </div>
+    <img class="product-art" src="assets/product-art.jpg" alt="TekStyle product illustration featuring black full belly wrap, material magnification, and technical callouts">
+  </section>
+
+  <section class="research-section" id="science">
+    <img src="assets/research-photo.jpg" alt="Researcher working in a laboratory">
+    <div class="research-copy">
+      <div class="eyebrow"><span></span>ROOTED IN SCIENCE</div>
+      <h2>Research-inspired.<br><em>Real-world ready.</em></h2>
+      <p>At TekStyle, we combine scientific research, innovative materials, and maternal insight to create a new category of maternity wear.</p>
+      <a class="outline-cta" href="#references">Our Scientific Approach <svg class="icon"><use href="#i-arrow"/></svg></a>
+    </div>
+    <div class="research-icons">
+      <div><svg class="icon"><use href="#i-flask"/></svg>Informed by<br>emerging research</div>
+      <div><svg class="icon"><use href="#i-shield"/></svg>Designed with<br>maternal wellness in mind</div>
+      <div><svg class="icon"><use href="#i-users"/></svg>Built for<br>everyday life</div>
+    </div>
+  </section>
+
+  <div class="extra-sections">
+    <section id="references">
+      <h2>The science behind the concept</h2>
+      <p>Frequency-selective surfaces are engineered structures that can reflect or transmit electromagnetic waves differently at different frequencies. The illustration above describes the design concept; a garment's performance and any health benefit require separate validation.</p>
+      <p><a href="https://news.yale.edu/2012/03/15/cell-phone-use-pregnancy-may-cause-behavioral-disorders-offspring" target="_blank" rel="noreferrer">Yale University: 2012 mouse study</a> — findings in mice do not establish outcomes in humans.</p>
+    </section>
+
+
+    <section id="story">
+      <h2>Our story</h2>
+      <p>TekStyle brings together electromagnetic engineering research and thoughtful maternity garment design.</p>
+    </section>
+
+    <section id="faq">
+      <h2>Frequently asked questions</h2>
+      <details><summary>Does TekStyle block all electromagnetic waves?</summary><p>No such claim is established. Frequency-selective structures are designed to interact with particular frequencies, and garment-specific test data are required to determine their performance.</p></details>
+      <details><summary>Is TekStyle clinically proven to protect fetal health?</summary><p>No clinical benefit is established here. Electromagnetic material performance and clinical health outcomes are different questions.</p></details>
+    </section>
+
+    <section id="contact">
+      <h2>Connect with TekStyle</h2>
+      <p>Interested in product updates or partnership opportunities?</p>
+      <button class="btn primary" data-open-modal>Join Waitlist <svg class="icon"><use href="#i-arrow"/></svg></button>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  © TekStyle. Concept website. Product performance and health claims have not been independently validated.
+</footer>
+
+<div class="modal-backdrop" id="modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <button class="close" id="modal-close" aria-label="Close"><svg class="icon"><use href="#i-x"/></svg></button>
+    <h2 id="modal-title">Join the TekStyle Waitlist</h2>
+    <p>Receive product availability and research updates.</p>
+    <form id="waitlist-form">
+      <label>Name<input required placeholder="Your name" autocomplete="name"></label>
+      <label>Email<input type="email" required placeholder="Your email" autocomplete="email"></label>
+      <label class="consent"><input type="checkbox" required> I agree to receive TekStyle updates.</label>
+      <button class="btn primary" type="submit">Continue <svg class="icon"><use href="#i-arrow"/></svg></button>
+      <small>This is a preview form. A secure waitlist service must be connected before publication; submissions are not collected.</small>
+    </form>
+    <p id="waitlist-thanks" hidden>Thank you for your interest. Contact-form delivery is not configured yet; no details were stored or sent.</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  var nav = document.getElementById('nav');
+  var menuBtn = document.getElementById('menu-btn');
+  var modal = document.getElementById('modal');
+  var lastFocus = null;
+
+  function setMenu(open) {
+    nav.classList.toggle('open', open);
+    menuBtn.setAttribute('aria-expanded', open);
+    menuBtn.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+    menuBtn.querySelector('use').setAttribute('href', open ? '#i-x' : '#i-menu');
+  }
+  menuBtn.addEventListener('click', function () { setMenu(!nav.classList.contains('open')); });
+  nav.querySelectorAll('a').forEach(function (a) { a.addEventListener('click', function () { setMenu(false); }); });
+
+  function openModal() {
+    lastFocus = document.activeElement;
+    modal.hidden = false;
+    modal.querySelector('input').focus();
+  }
+  function closeModal() {
+    modal.hidden = true;
+    if (lastFocus) lastFocus.focus();
+  }
+  document.querySelectorAll('[data-open-modal]').forEach(function (b) { b.addEventListener('click', openModal); });
+  document.getElementById('modal-close').addEventListener('click', closeModal);
+  modal.addEventListener('mousedown', function (e) { if (e.target === modal) closeModal(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
+
+  // Preview only: nothing is stored or transmitted.
+  document.getElementById('waitlist-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    e.target.hidden = true;
+    document.getElementById('waitlist-thanks').hidden = false;
+  });
+})();
+</script>
+</body>
+</html>
