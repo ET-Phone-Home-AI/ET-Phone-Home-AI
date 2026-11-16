@@ -19,3 +19,12 @@ node render.js
 ```
 
 Rendering takes about 4 minutes.
+
+## Vertical 9:16 version (Instagram Reels, TikTok, Shorts)
+The same animation has a 1080x1920 layout, switched on by opening `index.html#v`. Every scene is re-laid out for the tall frame, and the important text stays clear of the top and bottom where the Instagram interface sits.
+
+```bash
+node render.js vertical
+```
+
+This writes `VibeCodingUNleashed_ENGR126_9x16.mp4`. For check frames: `node stills.js vertical 14 45 72`.
