@@ -117,6 +117,7 @@ function coverScene(o){                      /* title page: SLIDES.push({ cover:
       const sz = o.size || 118; (o.title || []).forEach((ln, i) => { A(u(1 + i), () => txt(ln, 116, y - (1 - u(1 + i))*20, sz, C.ink, 'left', 700, DISP)); y += sz*1.085; });   /* size: smaller title type for long titles */
       A(u(3), () => txt(o.subtitle || '', 120, y - 40, 40, C.mut, 'left', 500, DISP));
       A(u(4), () => { txt(o.author || '', 120, 760, 44, C.ink, 'left', 700, DISP); txt(o.affil || '', 120, 812, 32, C.mut, 'left', 500, DISP); });
+      if (o.art){ A(u(2), () => o.art(t)); return; }           /* art: your own cover graphic, drawn in the area x 1240 to 1860 */
       const ph = t % 5, fw = [seg(ph, .3, 1.1), seg(ph, 1.1, 1.9)], bk = [seg(ph, 3.4, 4.2), seg(ph, 2.6, 3.4)];
       const fa = [ph < 1.1 ? 1 : 1 - seg(ph, 1.1, 1.5), seg(ph, 1, 1.2)*(1 - seg(ph, 1.9, 2.3)), seg(ph, 1.8, 2)*(1 - seg(ph, 2.6, 3))], ba = [seg(ph, 4.1, 4.3)*(1 - seg(ph, 4.5, 5)), seg(ph, 3.3, 3.5)*(1 - seg(ph, 3.8, 4.2)), seg(ph, 2.5, 2.7)*(1 - seg(ph, 3, 3.4))];
       A(u(2), () => { for (let l = 0; l < 2; l++) for (let i = 0; i < Ls[l]; i++) for (let j = 0; j < Ls[l+1]; j++){ const x1 = Xs[l], y1 = Yn(l, i), x2 = Xs[l+1], y2 = Yn(l+1, j); line(x1, y1, x2, y2, C.line, 2);

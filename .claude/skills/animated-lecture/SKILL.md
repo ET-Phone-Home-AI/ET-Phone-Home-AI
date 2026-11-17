@@ -122,6 +122,11 @@ SLIDES.push({ cover: true, title: '', boxes: [coverScene({
   author: 'Prof. Erdem Topsakal', affil: 'College of Engineering, VCU' })] });
 ```
 
+The default cover graphic is a small neural network. When the talk is not about neural networks,
+pass `art: t => { ... }` to draw a looping graphic that pictures the title instead, in the area
+from x = 1240 to 1860 (Erdem asked for this on his ITU talk: a flat line where a heartbeat would
+be, feeding an antenna that radiates).
+
 Use that author and affiliation unless Erdem gives different ones. Name the deck for what the
 audience will learn, and set the page `<title>` to the same name.
 
