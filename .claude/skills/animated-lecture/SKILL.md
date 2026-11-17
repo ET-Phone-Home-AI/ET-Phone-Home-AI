@@ -117,6 +117,7 @@ training). Skim it for patterns rather than copying its content.
 SLIDES.push({ cover: true, title: '', boxes: [coverScene({
   label: 'ENGR-126 · VIBE CODING WITH AI',            // course or event, in capitals
   title: ['How a Neural', 'Network Learns'],          // one or two short lines, about 14 characters each
+  // size: 96,                                       // optional: smaller title type when a line is longer (default 118)
   subtitle: 'Forward and backward propagation, one number at a time',
   author: 'Prof. Erdem Topsakal', affil: 'College of Engineering, VCU' })] });
 ```

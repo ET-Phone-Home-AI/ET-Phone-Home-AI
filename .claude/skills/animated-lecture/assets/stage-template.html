@@ -114,7 +114,7 @@ function coverScene(o){                      /* title page: SLIDES.push({ cover:
   return { title:'', D:3, caps:[], enter(){},
     draw(t){ const u = i => ease(seg(t, .15 + i*.18, .9 + i*.18)); let y = 250;
       A(u(0), () => txt(o.label || '', 120, y, 28, C.blue, 'left', 700, DISP)); y += 130;
-      (o.title || []).forEach((ln, i) => { A(u(1 + i), () => txt(ln, 116, y - (1 - u(1 + i))*20, 118, C.ink, 'left', 700, DISP)); y += 128; });
+      const sz = o.size || 118; (o.title || []).forEach((ln, i) => { A(u(1 + i), () => txt(ln, 116, y - (1 - u(1 + i))*20, sz, C.ink, 'left', 700, DISP)); y += sz*1.085; });   /* size: smaller title type for long titles */
       A(u(3), () => txt(o.subtitle || '', 120, y - 40, 40, C.mut, 'left', 500, DISP));
       A(u(4), () => { txt(o.author || '', 120, 760, 44, C.ink, 'left', 700, DISP); txt(o.affil || '', 120, 812, 32, C.mut, 'left', 500, DISP); });
       const ph = t % 5, fw = [seg(ph, .3, 1.1), seg(ph, 1.1, 1.9)], bk = [seg(ph, 3.4, 4.2), seg(ph, 2.6, 3.4)];
