@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--ARTIFACT-FRAGMENT-START-->
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Seven Through a Network</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: a 16:9 slide. Title top-left with a progress marker, one or two soft-bordered animation boxes, and a quiet note card under each box. */
+:root {
+  --page: #EDF0F5; --bg: #FFFFFF; --ink: #16203A; --muted: #56617A; --line: #D5DBE6; --fwd: #2563EB; --tint: #F2F5FB;
+  --display: 'Space Grotesk', 'Trebuchet MS', Arial, sans-serif;
+  --text: 'Inter', Arial, sans-serif;
+  color-scheme: light;
+}
+html, body { height: 100%; }
+html, :fullscreen, ::backdrop { background: var(--page); }   /* full screen keeps the same framed-slide look */
+body { margin: 0; background: var(--page); color: var(--ink); font-family: var(--text); }
+[hidden] { display: none !important; }
+.app { height: 100%; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
+  padding-block: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.slide { width: min(100vw - 32px, (100vh - 24px) * 16 / 9); aspect-ratio: 16 / 9; max-width: 100%; box-sizing: border-box; container-type: size;
+  background: var(--bg); border: 1px solid #CDD4E0; border-radius: .7cqw; box-shadow: 0 .4cqw 2.4cqw rgba(22, 32, 58, .10);
+  display: grid; grid-template-rows: auto 1fr; gap: 1.9cqw; padding: 2.7cqw 4.2cqw 2.6cqw; }
+:fullscreen .slide { width: min(96vw, 93vh * 16 / 9); }   /* a little more surround in full screen so the frame stays visible on a 16:9 display */
+.band { display: flex; align-items: flex-end; justify-content: space-between; gap: 3cqw; }
+.step { margin: 0 0 .55cqw; font: 600 .95cqw var(--text); letter-spacing: .16em; text-transform: uppercase; color: var(--fwd); }
+h1 { margin: 0; font: 600 2.9cqw/1.1 var(--display); letter-spacing: -.01em; text-wrap: balance; }
+.prog { display: flex; justify-content: flex-end; gap: .45cqw; padding-bottom: .9cqw; flex: 0 0 20cqw; width: 20cqw; }
+.prog i { display: block; flex: 0 1 2.2cqw; min-width: .5cqw; height: .34cqw; border-radius: 1cqw; background: var(--line); }
+.prog i.on { background: var(--fwd); }
+.boxes { min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 3cqw; }
+.boxes.single { grid-template-columns: 1fr; }
+.slide.cover { grid-template-rows: 1fr; }
+.slide.cover .band, .slide.cover .info { display: none; }
+.slide.cover .cw { border: 0; box-shadow: none; }
+.box { min-width: 0; min-height: 0; display: grid; grid-template-rows: 1fr auto; gap: 1.2cqw;
+  opacity: 0; transform: translateY(1cqw); transition: opacity .5s ease, transform .5s ease; }
+.box.on { opacity: 1; transform: none; }
+.cw { min-height: 0; position: relative; overflow: hidden; background: var(--bg); border: .13cqw solid var(--line); border-radius: 1.1cqw; box-shadow: 0 .3cqw 1.4cqw rgba(22, 32, 58, .06); }
+canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.info { height: 8.4cqw; box-sizing: border-box; overflow: hidden; background: var(--tint); border-radius: 1.1cqw; padding: 1cqw 1.5cqw;
+  display: grid; grid-template-columns: auto 1fr auto; column-gap: 1.1cqw; align-items: center; }
+.beats { display: flex; gap: .35cqw; align-self: end; padding-bottom: .1cqw; }
+.beats i { display: block; width: .55cqw; height: .55cqw; border-radius: 50%; background: var(--line); }
+.beats i.on { background: var(--fwd); }
+.num { width: 2.5cqw; height: 2.5cqw; border-radius: 50%; background: var(--fwd); color: #fff; font: 700 1.25cqw/2.5cqw var(--display); text-align: center; }
+.boxes.single .num { display: none; }
+.txt { min-width: 0; display: flex; flex-direction: column; gap: .3cqw; }
+h2 { margin: 0; font: 600 1.5cqw/1.2 var(--display); color: var(--ink); }
+.cap { margin: 0; font: 400 1.15cqw/1.4 var(--text); color: var(--muted); min-height: 1.6cqw; }
+footer { position: fixed; left: 0; right: 0; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; background: var(--bg); border-top: 1px solid var(--line);
+  padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+button { font: 600 15px var(--text); color: var(--ink); background: var(--bg); border: 1.5px solid var(--line); border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+button:hover { border-color: var(--ink); }
+button:disabled { opacity: .45; cursor: default; border-color: var(--line); }
+button:focus-visible { outline: 3px solid var(--fwd); outline-offset: 2px; }
+button.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.note { margin: 0; flex: 1; min-width: 240px; font: 400 13px/1.4 var(--text); color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .box { transition: none; } }
+</style>
+
+<div class="app">
+  <div class="slide" id="slide">
+    <header class="band">
+      <div><p class="step" id="step"></p><h1 id="title"></h1></div>
+      <div class="prog" id="prog" aria-hidden="true"></div>
+    </header>
+    <div class="boxes" id="boxes">
+      <section class="box" id="box0"><div class="cw"><canvas id="cv0" role="img" aria-label="First animation of this slide"></canvas></div><div class="info"><span class="num" aria-hidden="true">1</span><div class="txt"><h2 id="h0"></h2><p class="cap" id="cap0" aria-live="polite"></p></div><div class="beats" id="bt0" aria-hidden="true"></div></div></section>
+      <section class="box" id="box1"><div class="cw"><canvas id="cv1" role="img" aria-label="Second animation of this slide"></canvas></div><div class="info"><span class="num" aria-hidden="true">2</span><div class="txt"><h2 id="h1"></h2><p class="cap" id="cap1" aria-live="polite"></p></div><div class="beats" id="bt1" aria-hidden="true"></div></div></section>
+    </div>
+  </div>
+  <footer id="foot" hidden>
+    <div class="ctl">
+      <button id="prev" type="button">← Back</button>
+      <button id="replay" type="button">Replay</button>
+      <button id="next" type="button" class="primary">Next →</button>
+      <button id="full" type="button">Full screen</button>
+    </div>
+    <p class="note" id="note">H hides these controls, F toggles full screen, R replays the slide. → or a click shows the next box, then the next slide. Each press of → plays one step. ← replays the current step; pressed again straight away it goes back one step.</p>
+  </footer>
+</div>
+
+<script>
+(() => {
+/* =====================================================================
+   ENGINE: do not edit below until the SCENES marker.
+   ===================================================================== */
+const C = { bg:'#FFFFFF', ink:'#16203A', mut:'#5B6578', line:'#D5DBE6', pale:'#EEF1F6', blue:'#2563EB', org:'#EA580C', grn:'#15803D', red:'#DC2626', pur:'#7C3AED' };
+const MONO = "'JetBrains Mono','Courier New',monospace", DISP = "'Space Grotesk','Trebuchet MS',Arial,sans-serif";
+const H = 900; let W = 1100;                 /* logical drawing size of the box being painted: 1100 x 900 (two boxes) or 1900 x 900 (one box) */
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const lerp = (a,b,u) => a + (b-a)*u;
+const seg = (t,a,b) => clamp((t-a)/(b-a), 0, 1);                         /* 0..1 progress of time t between seconds a and b */
+const ease = u => u < .5 ? 2*u*u : 1 - Math.pow(-2*u+2, 2)/2;
+function mulberry(a){ return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a>>>15, 1|a); t = t + Math.imul(t ^ t>>>7, 61|t) ^ t; return ((t ^ t>>>14)>>>0)/4294967296; }; }  /* seeded random: const r = mulberry(7); r() */
+const randn = r => Math.sqrt(-2*Math.log(r()+1e-9)) * Math.cos(6.283185*r());
+let g = null;                                 /* 2D context of the box being painted */
+function txt(s, x, y, size, col, al, wt, fam){ g.font = `${wt||500} ${size}px ${fam||MONO}`; g.textAlign = al||'left'; g.textBaseline = 'alphabetic'; g.fillStyle = col||C.ink; g.fillText(s, x, y); }
+function A(a, fn){ if (a <= 0) return; const o = g.globalAlpha; g.globalAlpha = o*clamp(a,0,1); fn(); g.globalAlpha = o; }   /* draw fn at opacity a */
+function circle(x, y, r, fill, stroke, lw){ g.beginPath(); g.arc(x, y, r, 0, 6.2832); if (fill){ g.fillStyle = fill; g.fill(); } if (stroke){ g.strokeStyle = stroke; g.lineWidth = lw||1.5; g.stroke(); } }
+function line(x1, y1, x2, y2, col, lw){ g.strokeStyle = col||C.line; g.lineWidth = lw||2; g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2); g.stroke(); }
+function rect(x, y, w, h, fill, stroke, lw, rad){ g.beginPath(); if (rad && g.roundRect) g.roundRect(x, y, w, h, rad); else g.rect(x, y, w, h); if (fill){ g.fillStyle = fill; g.fill(); } if (stroke){ g.strokeStyle = stroke; g.lineWidth = lw||1.5; g.stroke(); } }
+function arrow(x1, y1, x2, y2, col, lw){ const a = Math.atan2(y2-y1, x2-x1), h = 14 + (lw||3)*2; line(x1, y1, x2, y2, col, lw||3); g.beginPath(); g.moveTo(x2, y2); g.lineTo(x2 - h*Math.cos(a-.45), y2 - h*Math.sin(a-.45)); g.moveTo(x2, y2); g.lineTo(x2 - h*Math.cos(a+.45), y2 - h*Math.sin(a+.45)); g.stroke(); }
+function travel(x1, y1, x2, y2, u, col, r, lw){ if (u <= 0) return; const e = ease(u), x = lerp(x1,x2,e), y = lerp(y1,y2,e); line(x1, y1, x, y, col, lw||3); if (u < 1) circle(x, y, r||6, col); }   /* a signal moving along a wire, u = 0..1 */
+function flash(x, y, r, u, col){ if (u > 0 && u < 1) A(1-u, () => circle(x, y, r + 20*u, null, col, 3)); }                    /* expanding ring when something fires */
+
+function coverScene(o){                      /* title page: SLIDES.push({ cover:true, title:'', boxes:[coverScene({ label, title:[line1, line2], subtitle, author, affil })] }) */
+  const Ls = [3, 4, 2], Xs = [1360, 1585, 1810], Yn = (l, i) => 450 + (i - (Ls[l]-1)/2)*150;
+  return { title:'', D:3, caps:[], enter(){},
+    draw(t){ const u = i => ease(seg(t, .15 + i*.18, .9 + i*.18)); let y = 250;
+      A(u(0), () => txt(o.label || '', 120, y, 28, C.blue, 'left', 700, DISP)); y += 130;
+      (o.title || []).forEach((ln, i) => { A(u(1 + i), () => txt(ln, 116, y - (1 - u(1 + i))*20, 118, C.ink, 'left', 700, DISP)); y += 128; });
+      A(u(3), () => txt(o.subtitle || '', 120, y - 40, 40, C.mut, 'left', 500, DISP));
+      A(u(4), () => { txt(o.author || '', 120, 760, 44, C.ink, 'left', 700, DISP); txt(o.affil || '', 120, 812, 32, C.mut, 'left', 500, DISP); });
+      const ph = t % 5, fw = [seg(ph, .3, 1.1), seg(ph, 1.1, 1.9)], bk = [seg(ph, 3.4, 4.2), seg(ph, 2.6, 3.4)];
+      const fa = [ph < 1.1 ? 1 : 1 - seg(ph, 1.1, 1.5), seg(ph, 1, 1.2)*(1 - seg(ph, 1.9, 2.3)), seg(ph, 1.8, 2)*(1 - seg(ph, 2.6, 3))], ba = [seg(ph, 4.1, 4.3)*(1 - seg(ph, 4.5, 5)), seg(ph, 3.3, 3.5)*(1 - seg(ph, 3.8, 4.2)), seg(ph, 2.5, 2.7)*(1 - seg(ph, 3, 3.4))];
+      A(u(2), () => { for (let l = 0; l < 2; l++) for (let i = 0; i < Ls[l]; i++) for (let j = 0; j < Ls[l+1]; j++){ const x1 = Xs[l], y1 = Yn(l, i), x2 = Xs[l+1], y2 = Yn(l+1, j); line(x1, y1, x2, y2, C.line, 2);
+          if (fw[l] > 0 && fw[l] < 1 && (i + j) % 2 === 0) circle(lerp(x1, x2, ease(fw[l])), lerp(y1, y2, ease(fw[l])), 7, C.blue);
+          if (bk[l] > 0 && bk[l] < 1 && (i + j) % 2 === 1) circle(lerp(x2, x1, ease(bk[l])), lerp(y2, y1, ease(bk[l])), 7, C.org); }
+        for (let l = 0; l < 3; l++) for (let i = 0; i < Ls[l]; i++){ const x = Xs[l], yy = Yn(l, i); circle(x, yy, 34, C.bg, C.ink, 2.5); A(fa[l]*.9, () => circle(x, yy, 34, C.blue, C.ink, 2.5)); A(ba[l], () => circle(x, yy, 44, null, C.org, 4)); } });
+    } };
+}
+
+const AUTO_CHAIN = false;                     /* false: the next box waits for Next (Erdem's preference). true: it starts by itself when the previous one finishes. */
+const STEP_MODE = true;                      /* true: each box advances one step per Next press. false: a box plays straight through. */
+const BACK_REPLAY = 1.5;                     /* Back within this many seconds of a box starting steps to the previous box; later than that it replays the current box */
+const CHAIN_GAP = 0.8;                        /* seconds between one box finishing and the next starting */
+const SLIDES = [];                            /* filled in the SCENES section */
+const DECK = { label: '' };                   /* optional course or talk label shown before "Slide 1 of N" */
+
+/* =====================================================================
+   SCENES START: replace everything between the two SCENES markers.
+   A scene is { title, D, caps, enter(), draw(t) }. See SKILL.md.
+   ===================================================================== */
+
+/* ---------- digits ---------- */
+const FAM = ['Arial, Helvetica, sans-serif','Georgia, "Times New Roman", serif','"Courier New", monospace','Verdana, sans-serif','"Trebuchet MS", sans-serif'];
+const mkParams = (r,d) => ({ d:String(d), fam:FAM[r()*FAM.length|0], it:r()<.25, bold:r()<.5, rot:(r()-.5)*.4, sc:.8+r()*.3, dx:(r()-.5)*.14, dy:(r()-.5)*.14 });
+function drawDigit(c, size, p, color){
+  c.save(); c.translate(size*(.5+p.dx), size*(.5+p.dy)); c.rotate(p.rot); c.scale(p.sc, p.sc);
+  c.font = `${p.it?'italic ':''}${p.bold?700:400} ${size*.78}px ${p.fam}`; c.textAlign = 'center'; c.textBaseline = 'alphabetic'; c.fillStyle = color;
+  const m = c.measureText(p.d); c.fillText(p.d, 0, (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent)/2); c.restore();
+}
+const sc = document.createElement('canvas'); sc.width = sc.height = 56;
+const sg = sc.getContext('2d', { willReadFrequently:true });
+function toVec(p){
+  sg.clearRect(0,0,56,56); drawDigit(sg, 56, p, '#000');
+  const a = sg.getImageData(0,0,56,56).data, x = new Float32Array(196); let mx = 1e-6;
+  for (let r=0;r<14;r++) for (let c=0;c<14;c++){ let s=0; for (let y=0;y<4;y++) for (let q=0;q<4;q++) s += a[((r*4+y)*56 + c*4+q)*4+3]; x[r*14+c] = s/4080; if (x[r*14+c]>mx) mx = x[r*14+c]; }
+  for (let i=0;i<196;i++) x[i] /= mx;
+  return x;
+}
+function tileOf(p){ const c = document.createElement('canvas'); c.width = c.height = 56; drawDigit(c.getContext('2d'), 56, p, C.ink); return c; }
+
+const heroP = { d:'7', fam:FAM[0], it:false, bold:true, rot:-.06, sc:1, dx:0, dy:0 };
+const hero = toVec(heroP);
+const big = document.createElement('canvas'); big.width = big.height = 440; drawDigit(big.getContext('2d'), 440, heroP, C.ink);
+const dr = mulberry(7), train = [], test = [], tiles = [{ img:tileOf(heroP), x:hero, y:7 }];
+for (let i=0;i<800;i++){ const p = mkParams(dr, i%10); train.push({ x:toVec(p), y:i%10 }); }
+for (let i=0;i<200;i++){ const p = mkParams(dr, i%10); const s = { x:toVec(p), y:i%10 }; test.push(s); if (tiles.length<20 && i%10 !== 7 || (tiles.length<20 && i>100)) tiles.push({ img:tileOf(p), x:s.x, y:s.y }); }
+
+/* ---------- network 196 -> 16 -> 10 ---------- */
+const NI = 196, NH = 16, NO = 10, LR = 0.03, TOTAL = 6000, NPARAM = NI*NH + NH + NH*NO + NO;
+function makeNet(r){ const n = { W1:new Float32Array(NH*NI), b1:new Float32Array(NH), W2:new Float32Array(NO*NH), b2:new Float32Array(NO) };
+  for (let i=0;i<n.W1.length;i++) n.W1[i] = randn(r)*Math.sqrt(2/40); for (let i=0;i<n.W2.length;i++) n.W2[i] = randn(r)*Math.sqrt(2/NH); return n; }
+const clone = n => ({ W1:n.W1.slice(), b1:n.b1.slice(), W2:n.W2.slice(), b2:n.b2.slice() });
+function forward(n, x){
+  const z = new Float32Array(NH), h = new Float32Array(NH), o = new Float32Array(NO), p = new Float32Array(NO);
+  for (let j=0;j<NH;j++){ let s = n.b1[j]; const o1 = j*NI; for (let i=0;i<NI;i++) s += n.W1[o1+i]*x[i]; z[j] = s; h[j] = s>0 ? s : 0; }
+  let mx = -1e9; for (let k=0;k<NO;k++){ let s = n.b2[k]; for (let j=0;j<NH;j++) s += n.W2[k*NH+j]*h[j]; o[k] = s; if (s>mx) mx = s; }
+  let sum = 0; for (let k=0;k<NO;k++){ p[k] = Math.exp(o[k]-mx); sum += p[k]; } for (let k=0;k<NO;k++) p[k] /= sum;
+  return { z, h, o, p };
+}
+const argmax = p => { let b = 0; for (let k=1;k<p.length;k++) if (p[k]>p[b]) b = k; return b; };
+function backward(n, f, y){ const d = f.p.slice(); d[y] -= 1; const dh = new Float32Array(NH);
+  for (let j=0;j<NH;j++){ let s = 0; for (let k=0;k<NO;k++) s += n.W2[k*NH+j]*d[k]; dh[j] = f.z[j]>0 ? s : 0; } return { d, dh }; }
+function sgd(n, x, y, lr){ const f = forward(n, x), { d, dh } = backward(n, f, y);
+  for (let k=0;k<NO;k++){ for (let j=0;j<NH;j++) n.W2[k*NH+j] -= lr*d[k]*f.h[j]; n.b2[k] -= lr*d[k]; }
+  for (let j=0;j<NH;j++){ if (!dh[j]) continue; const o1 = j*NI, q = lr*dh[j]; for (let i=0;i<NI;i++) n.W1[o1+i] -= q*x[i]; n.b1[j] -= q; }
+  return -Math.log(f.p[y] + 1e-9); }
+const accuracy = n => { let ok = 0; for (const s of test) if (argmax(forward(n, s.x).p) === s.y) ok++; return ok/test.length; };
+
+let net0; for (let seed=1; ; seed++){ net0 = makeNet(mulberry(seed)); const f = forward(net0, hero); if (argmax(f.p) !== 7 && f.p[7] < .15 && f.p[7] > .01) break; }
+const acc0 = accuracy(net0);
+let T = null;
+const newTrainer = () => ({ net:clone(net0), step:0, pts:[], acc:acc0, sum:0, r:mulberry(99) });
+function advance(tr, to){ while (tr.step < to){ const s = train[tr.r()*train.length|0]; tr.sum += sgd(tr.net, s.x, s.y, LR); tr.step++;
+  if (tr.step%50 === 0){ tr.pts.push(tr.sum/50); tr.sum = 0; } if (tr.step%100 === 0) tr.acc = accuracy(tr.net); } }
+
+/* ---------- shared network geometry (1100 x 900 per box) ---------- */
+const GX = 30, GY = 150, GC = 20, HX = 520, OX = 760, BX = 800, BW = 150, PX = 170;
+const hy = j => 90 + j*48, oy = k => 126 + k*72, ry = r => GY + (r+.5)*GC, RX = GX + 14*GC + 6;
+function drawGrid(x, glow, glowCol){
+  g.fillStyle = C.pale; g.fillRect(GX, GY, 280, 280);
+  for (let i=0;i<196;i++){ const v = x[i]; if (v < .02) continue; const cx = GX + (i%14)*GC, cy = GY + (i/14|0)*GC;
+    A(v, () => { g.fillStyle = C.ink; g.fillRect(cx, cy, GC, GC); });
+    if (glow > 0) A(v*glow*.85, () => { g.fillStyle = glowCol; g.fillRect(cx, cy, GC, GC); }); }
+  g.strokeStyle = C.line; g.lineWidth = 1.5; g.strokeRect(GX, GY, 280, 280);
+}
+function baseEdges(){ g.strokeStyle = C.line; g.lineWidth = .6; g.globalAlpha = .45; g.beginPath();
+  for (let r=0;r<14;r++) for (let j=0;j<NH;j++){ g.moveTo(RX, ry(r)); g.lineTo(HX, hy(j)); }
+  for (let j=0;j<NH;j++) for (let k=0;k<NO;k++){ g.moveTo(HX, hy(j)); g.lineTo(OX, oy(k)); }
+  g.stroke(); g.globalAlpha = 1; }
+function pulse(x1, y1, x2, y2, s, u, col, t, amb){
+  if (u <= 0) return; const e = ease(u), x = lerp(x1,x2,e), y = lerp(y1,y2,e);
+  g.strokeStyle = col; g.lineWidth = .8 + 3*s; g.globalAlpha = .1 + .5*s; g.beginPath(); g.moveTo(x1,y1); g.lineTo(x,y); g.stroke();
+  g.globalAlpha = 1;
+  if (u < 1) circle(x, y, 3 + 4.5*s, col);
+  else if (amb && s > .35){ const q = (t*.45 + (x1*.013 + y1*.031 + y2*.017)) % 1; A(.75, () => circle(lerp(x1,x2,q), lerp(y1,y2,q), 2.2 + 2.8*s, col)); }
+}
+function colLabels(){ txt('196 pixels', GX+140, GY-18, 22, C.mut, 'center', 500, DISP); txt('16 hidden', HX, 50, 22, C.mut, 'center', 500, DISP); txt('10 outputs', OX, 82, 22, C.mut, 'center', 500, DISP); }
+function strengths(n, x, f){
+  const e1 = [], e2 = []; let m1 = 1e-9, m2 = 1e-9;
+  for (let r=0;r<14;r++) for (let j=0;j<NH;j++){ let s = 0; for (let c=0;c<14;c++) s += n.W1[j*NI + r*14+c]*x[r*14+c]; s = Math.abs(s)*(f.h[j]>0?1:.25); e1.push({ r, j, s }); if (s>m1) m1 = s; }
+  for (let j=0;j<NH;j++) for (let k=0;k<NO;k++){ const s = Math.abs(n.W2[k*NH+j]*f.h[j]); e2.push({ j, k, s }); if (s>m2) m2 = s; }
+  e1.forEach(e => e.s /= m1); e2.forEach(e => e.s /= m2);
+  return { e1:e1.filter(e => e.s > .06), e2:e2.filter(e => e.s > .06) };
+}
+
+/* ---------- forward-pass animation (used before and after training) ---------- */
+function forwardScene(title, getNet, caps){
+  let f, E, hm, top;
+  return { title, D:8.2, caps,
+    enter(){ const n = getNet(); f = forward(n, hero); E = strengths(n, hero, f); hm = Math.max(...f.h, 1e-6); top = argmax(f.p); this.top = top; this.p = f.p[top]; },
+    draw(t){
+      baseEdges(); colLabels();
+      for (const e of E.e1) pulse(RX, ry(e.r), HX, hy(e.j), e.s, seg(t, 1+e.r*.05, 2.1+e.r*.05), C.blue, t, t>3.2);
+      for (const e of E.e2) pulse(HX, hy(e.j), OX, oy(e.k), e.s, seg(t, 3.6+e.j*.04, 4.8+e.j*.04), C.blue, t, t>6);
+      drawGrid(hero, 0); A(1 - seg(t, .3, 1.3), () => { g.strokeStyle = C.blue; g.lineWidth = 5; g.strokeRect(GX-4, GY-4, 288, 288); });
+      for (let j=0;j<NH;j++){ const a = f.h[j]/hm, u = seg(t, 2.5+j*.03, 3.0+j*.03), y = hy(j);
+        circle(HX, y, 18, C.bg, C.ink, 1.5); A(a*u, () => circle(HX, y, 18, C.blue));
+        if (u > 0 && u < 1) A((1-u)*a, () => circle(HX, y, 18+18*u, null, C.blue, 3));
+        if (u >= 1 && a > .08) A(.35*a*(.5+.5*Math.sin(t*4 + j*1.7)), () => circle(HX, y, 23, null, C.blue, 2.5)); }
+      const ub = ease(seg(t, 5.4, 6.6));
+      for (let k=0;k<NO;k++){ const y = oy(k), p = f.p[k]*ub;
+        circle(OX, y, 25, C.bg, C.ink, 1.5); A(p, () => circle(OX, y, 25, C.blue));
+        if (ub > 0 && ub < 1) A((1-ub)*f.p[k], () => circle(OX, y, 25+20*ub, null, C.blue, 3));
+        txt(String(k), OX, y+10, 28, p > .5 ? C.bg : C.ink, 'center', 600, DISP);
+        g.fillStyle = C.pale; g.fillRect(BX, y-14, BW, 28); g.fillStyle = C.blue; g.fillRect(BX, y-14, BW*p, 28);
+        A(ub, () => txt(Math.round(p*100) + '%', BX+BW+12, y+9, 26, k === top ? C.ink : C.mut, 'left', k === top ? 700 : 500)); }
+      const up = seg(t, 7, 7.6), col = top === 7 ? C.grn : C.red;
+      A(up, () => { txt('THE GUESS', PX, 520, 22, C.mut, 'center', 600, DISP); txt(String(top), PX, 720 - 20*(1-ease(up)), 210, col, 'center', 700, DISP);
+        txt(Math.round(f.p[top]*100) + '% sure', PX, 780, 30, C.ink, 'center', 700); txt(top === 7 ? 'correct' : 'wrong: it is a 7', PX, 824, 26, col, 'center', 600, DISP); });
+    } };
+}
+
+/* ---------- the six animations ---------- */
+const S = [];
+
+S.push({ title:'A 7 becomes 196 numbers', D:11.5, caps:[
+  [0, 'The camera hands us a picture.'],
+  [1.5, 'Shrunk to a 14 × 14 grid, every square is one pixel.'],
+  [3.8, 'Each pixel is just a brightness between 0 (paper) and 1 (ink).'],
+  [7.5, 'Lay the rows end to end and the image is a vector x of 196 numbers. That vector is all the network ever sees.']],
+  enter(){},
+  draw(t){
+    const IX = 30, IY = 150, IS = 300, ic = IS/14, NX = 460, NY = 80, nc = 42, SX = 60, SY = 740, cw = 5, sh = 44;
+    const a = seg(t, 0, 1.2), s = .9 + .1*ease(a);
+    A(a, () => g.drawImage(big, IX + IS*(1-s)/2, IY + IS*(1-s)/2, IS*s, IS*s));
+    const up = seg(t, 1.5, 3.5)*14;
+    for (let r=0;r<14;r++){ const ur = clamp(up-r, 0, 1); if (ur <= 0) continue;
+      for (let c=0;c<14;c++){ const v = hero[r*14+c]; A(ur, () => { g.fillStyle = C.bg; g.fillRect(IX+c*ic, IY+r*ic, ic+.5, ic+.5); }); A(ur*v, () => { g.fillStyle = C.ink; g.fillRect(IX+c*ic, IY+r*ic, ic+.5, ic+.5); }); } }
+    A(seg(t, 1.5, 2.5)*.7, () => { g.strokeStyle = C.line; g.lineWidth = 1; g.beginPath(); for (let i=0;i<=14;i++){ g.moveTo(IX+i*ic, IY); g.lineTo(IX+i*ic, IY+IS); g.moveTo(IX, IY+i*ic); g.lineTo(IX+IS, IY+i*ic); } g.stroke(); });
+    A(seg(t, 3.6, 4.2), () => { g.strokeStyle = C.blue; g.lineWidth = 5; g.beginPath(); g.moveTo(350, 300); g.lineTo(436, 300); g.moveTo(418, 284); g.lineTo(438, 300); g.lineTo(418, 316); g.stroke(); });
+    for (let i=0;i<196;i++){ const r = i/14|0, c = i%14, v = hero[i], st = (r+c)/26*.9, um = ease(seg(t, 3.8+st, 4.9+st)); if (um <= 0) continue;
+      const x = lerp(IX+c*ic, NX+c*nc, um), y = lerp(IY+r*ic, NY+r*nc, um), w = lerp(ic, nc, um), un = seg(t, 5.6+st*.8, 6.4+st*.8);
+      g.fillStyle = C.bg; g.fillRect(x, y, w, w); A(v*(1 - .75*un), () => { g.fillStyle = C.ink; g.fillRect(x, y, w, w); });
+      g.strokeStyle = C.line; g.lineWidth = 1; g.strokeRect(x, y, w, w);
+      A(un, () => txt(v < .05 ? '0' : v.toFixed(1), x+w/2, y+w/2+6, 17, v < .05 ? '#AEB7C6' : C.ink, 'center', v < .05 ? 500 : 700)); }
+    A(seg(t, 7.3, 7.8), () => { g.fillStyle = C.pale; g.fillRect(SX, SY, 196*cw, sh); });
+    for (let i=0;i<196;i++){ const r = i/14|0, c = i%14, v = hero[i], uf = ease(seg(t, 7.5+r*.14, 8.6+r*.14)); if (uf <= 0) continue;
+      const x = lerp(NX+c*nc, SX+i*cw, uf), y = lerp(NY+r*nc, SY, uf), w = lerp(nc, cw, uf), h = lerp(nc, sh, uf);
+      A(.25 + .75*uf, () => { g.fillStyle = C.pale; g.fillRect(x, y, w, h); A(v, () => { g.fillStyle = C.blue; g.fillRect(x, y, w, h); }); }); }
+    A(seg(t, 10.2, 10.8), () => { g.strokeStyle = C.blue; g.lineWidth = 2.5; g.strokeRect(SX-3, SY-3, 196*cw+6, sh+6); txt('x = [ 196 numbers ]', 550, SY+sh+50, 32, C.blue, 'center', 700); });
+  } });
+
+S.push(forwardScene('Forward pass, before any training', () => net0, [
+  [0, 'The weights start as random numbers, so the network knows nothing yet.'],
+  [1, 'Each hidden neuron takes a weighted sum of all 196 pixels and keeps it only if positive: h = max(0, w·x + b).'],
+  [3.6, 'Each output adds up the hidden values with its own weights: o = W₂h + b₂.'],
+  [5.4, 'Softmax, p = exp(o) / Σ exp(o), turns ten raw scores into probabilities that add up to 100%.'],
+  [7, 'Random weights give a random opinion.']]));
+
+S.push({ title:'Loss: how wrong was that guess?', D:8, caps:[
+  [0, 'These are the ten probabilities the untrained network just produced.'],
+  [1.6, 'The truth is a 7: ideally all 100% would sit on that row.'],
+  [3, 'Cross-entropy loss looks only at the probability given to the right answer: L = −ln(p₇).'],
+  [5.8, 'Sure and right costs nothing. Sure and wrong costs without limit. Training means pushing this one number down.']],
+  enter(){ this.f = forward(net0, hero); },
+  draw(t){
+    const p = this.f.p, ub = ease(seg(t, .2, 1.2)), L = -Math.log(p[7]), bx = 80, bw = 300;
+    for (let k=0;k<NO;k++){ const y = 130 + k*66; txt(String(k), 46, y+11, 32, C.ink, 'center', 600, DISP);
+      g.fillStyle = C.pale; g.fillRect(bx, y-16, bw, 32); g.fillStyle = C.blue; g.fillRect(bx, y-16, bw*p[k]*ub, 32);
+      A(ub, () => txt((p[k]*100).toFixed(1) + '%', bx + bw*p[k]*ub + 10, y+9, 24, C.mut)); }
+    const y7 = 130 + 7*66;
+    A(seg(t, 1.6, 2.4), () => { g.strokeStyle = C.grn; g.lineWidth = 3; g.strokeRect(bx, y7-16, bw, 32); txt('truth', bx+bw+14, y7-2, 22, C.grn, 'left', 700); txt('100%', bx+bw+14, y7+22, 22, C.grn, 'left', 700); });
+    A(seg(t, 3, 3.5), () => { g.strokeStyle = C.org; g.lineWidth = 3; g.strokeRect(16, y7-32, 462, 64); });
+    A(seg(t, 3, 3.6), () => txt('L = −ln( p₇ )', 520, 190, 46, C.ink, 'left', 700));
+    A(seg(t, 3.8, 4.4), () => txt('  = −ln( ' + p[7].toFixed(3) + ' )', 520, 262, 46, C.ink, 'left', 500));
+    A(seg(t, 4.6, 5), () => txt('  = ' + (L*ease(seg(t, 4.6, 5.8))).toFixed(2), 520, 380, 100, C.org, 'left', 700));
+    const x0 = 570, x1 = 1060, yb = 780, yt = 510, LM = 4.6, ud = seg(t, 5.8, 7);
+    A(seg(t, 5.6, 6), () => { g.strokeStyle = C.line; g.lineWidth = 2; g.beginPath(); g.moveTo(x0, yt); g.lineTo(x0, yb); g.lineTo(x1, yb); g.stroke();
+      txt('loss', x0-12, yt+8, 22, C.mut, 'right'); txt('p₇ = 0', x0, yb+32, 22, C.mut, 'left'); txt('1', x1, yb+32, 22, C.mut, 'center');
+      txt('sure and wrong: huge', x0+36, yt+8, 22, C.mut, 'left', 500, DISP); txt('sure and right: 0', x1, yb-24, 22, C.mut, 'right', 500, DISP); });
+    if (ud > 0){ g.strokeStyle = C.org; g.lineWidth = 5; g.beginPath();
+      for (let i=0;i<=100*ud;i++){ const q = .01 + .99*i/100, x = lerp(x0, x1, q), y = yb - Math.min(-Math.log(q), LM)/LM*(yb-yt); i ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); }
+    A(seg(t, 6.9, 7.3), () => { const x = lerp(x0, x1, p[7]), y = yb - Math.min(L, LM)/LM*(yb-yt); circle(x, y, 11, C.org, C.bg, 3); txt('we are here', x+20, y+6, 24, C.org, 'left', 700, DISP); });
+  } });
+
+S.push({ title:'Backpropagation, then one weight update', D:10, caps:[
+  [0, 'Start at the output. The error there is simply δ = p − y: prediction minus truth.'],
+  [1.2, 'Chain rule: a weight’s gradient is the error at its far end times the value at its near end, ∂L/∂w = δ · h.'],
+  [3, 'Errors pass back through the same weights, δₕ = W₂ᵀδ, but only through neurons that fired.'],
+  [5.6, 'Blank pixels multiply the gradient by 0, so only weights attached to ink are told to change.'],
+  [6.8, 'Update: w ← w − η · ∂L/∂w. All ' + NPARAM.toLocaleString() + ' numbers take one small step downhill.']],
+  enter(){
+    const f = this.f = forward(net0, hero), b = this.b = backward(net0, f, 7); this.hm = Math.max(...f.h, 1e-6);
+    const e2 = [], e1 = []; let m2 = 1e-9, m1 = 1e-9, mh = 1e-9;
+    for (let j=0;j<NH;j++) for (let k=0;k<NO;k++){ const s = Math.abs(b.d[k]*f.h[j]); e2.push({ j, k, s }); if (s>m2) m2 = s; }
+    for (let j=0;j<NH;j++){ const s = Math.abs(b.dh[j]); if (s>mh) mh = s; }
+    for (let r=0;r<14;r++){ let rs = 0; for (let c=0;c<14;c++) rs += hero[r*14+c]; for (let j=0;j<NH;j++){ const s = Math.abs(b.dh[j])*rs; e1.push({ r, j, s }); if (s>m1) m1 = s; } }
+    e2.forEach(e => e.s /= m2); e1.forEach(e => e.s /= m1); this.mh = mh;
+    this.e2 = e2.filter(e => e.s > .06); this.e1 = e1.filter(e => e.s > .06);
+    const n1 = clone(net0); sgd(n1, hero, 7, .1); this.pa = forward(n1, hero).p[7];
+    this.ws = e2.slice().sort((a,b) => b.s - a.s).slice(0,3).map(e => ({ j:e.j, k:e.k, w0:net0.W2[e.k*NH+e.j], w1:n1.W2[e.k*NH+e.j] }));
+  },
+  draw(t){
+    const f = this.f, b = this.b, ug = seg(t, 6.8, 7.6);
+    baseEdges(); colLabels(); txt('δ = p − y', BX+BW+12, 82, 22, C.org, 'left', 700);
+    for (const pass of [[C.org, 1-ug], [C.grn, ug]]) A(pass[1], () => {
+      for (const e of this.e2) pulse(OX, oy(e.k), HX, hy(e.j), e.s, seg(t, 1.2+e.k*.06, 2.4+e.k*.06), pass[0], t, t>6.8);
+      for (const e of this.e1) pulse(HX, hy(e.j), RX, ry(e.r), e.s, seg(t, 3.8+e.j*.04, 5+e.j*.04), pass[0], t, t>6.8); });
+    drawGrid(hero, seg(t, 5.6, 6.4), ug > .5 ? C.grn : C.org);
+    for (let j=0;j<NH;j++){ const y = hy(j), a = Math.abs(b.dh[j])/this.mh, u = seg(t, 3+j*.03, 3.5+j*.03);
+      circle(HX, y, 18, C.bg, C.ink, 1.5); A(.3*f.h[j]/this.hm*(1-u), () => circle(HX, y, 18, C.blue)); A(a*u, () => circle(HX, y, 18, ug > .5 ? C.grn : C.org));
+      if (u > 0 && u < 1) A((1-u)*a, () => circle(HX, y, 18+18*u, null, C.org, 3)); }
+    const ud = seg(t, .2, 1);
+    for (let k=0;k<NO;k++){ const y = oy(k), d = b.d[k];
+      circle(OX, y, 25, C.bg, C.ink, 1.5); A(Math.abs(d)*ud, () => circle(OX, y, 25, C.org));
+      A(ud*(.4 + .6*Math.abs(d)), () => circle(OX, y, 25 + 5 + 8*Math.abs(d), null, C.org, 3));
+      txt(String(k), OX, y+10, 28, Math.abs(d)*ud > .5 ? C.bg : C.ink, 'center', 600, DISP);
+      g.fillStyle = C.pale; g.fillRect(BX, y-14, BW, 28); A(.35, () => { g.fillStyle = C.blue; g.fillRect(BX, y-14, BW*f.p[k], 28); });
+      A(ud, () => txt((d >= 0 ? '+' : '−') + Math.abs(d).toFixed(2), BX+BW+12, y+9, 26, C.org, 'left', k === 7 ? 700 : 500)); }
+    const uu = ease(seg(t, 7.6, 9.2));
+    A(seg(t, 6.8, 7.4), () => { txt('ONE UPDATE', PX, 500, 22, C.mut, 'center', 600, DISP); txt('w ← w − η·∂L/∂w', PX, 540, 24, C.grn, 'center', 700); txt('η = 0.1', PX, 572, 22, C.mut, 'center');
+      this.ws.forEach((w, i) => { const v = lerp(w.w0, w.w1, uu); txt('h' + (w.j+1) + '→“' + w.k + '”', 30, 622 + i*38, 22, C.mut, 'left'); txt((v < 0 ? '−' : ' ') + Math.abs(v).toFixed(3), 310, 622 + i*38, 24, C.grn, 'right', 700); });
+      txt('chance it says 7', PX, 752, 22, C.mut, 'center', 600, DISP); txt((lerp(f.p[7], this.pa, uu)*100).toFixed(1) + '%', PX, 820, 64, C.grn, 'center', 700);
+      txt('was ' + (f.p[7]*100).toFixed(1) + '%', PX, 856, 22, C.mut, 'center'); });
+  } });
+
+S.push({ title:'Training: the same loop, 6,000 times', D:12, caps:[
+  [0, 'Show one digit, run forward, measure the loss, run backward, update. Then the next digit.'],
+  [4, 'The loss falls because every update moves the weights a little way down its slope: stochastic gradient descent.'],
+  [11, 'Nobody told it what a 7 looks like. ' + NPARAM.toLocaleString() + ' numbers were nudged until the loss came down.']],
+  enter(){ T = newTrainer(); },
+  draw(t){
+    advance(T, Math.floor(seg(t, .8, 11)*TOTAL));
+    const x0 = 70, x1 = 500, yb = 740, yt = 200, YM = 2.6, Y = v => yb - Math.min(v, YM)/YM*(yb-yt);
+    txt('loss, average of last 50 digits', x0, 160, 22, C.mut, 'left', 500, DISP);
+    g.strokeStyle = C.line; g.lineWidth = 1; for (let v=0;v<=2;v++){ g.beginPath(); g.moveTo(x0, Y(v)); g.lineTo(x1, Y(v)); g.stroke(); txt(String(v), x0-14, Y(v)+8, 22, C.mut, 'right'); }
+    txt('updates →', x1, yb+38, 22, C.mut, 'right', 500, DISP);
+    if (T.pts.length){ g.strokeStyle = C.org; g.lineWidth = 5; g.lineJoin = 'round'; g.beginPath();
+      T.pts.forEach((v, i) => { const x = lerp(x0, x1, (i+1)*50/TOTAL); i ? g.lineTo(x, Y(v)) : g.moveTo(x, Y(v)); }); g.stroke();
+      const v = T.pts[T.pts.length-1], x = lerp(x0, x1, T.pts.length*50/TOTAL); circle(x, Y(v), 9, C.org, C.bg, 3); txt(v.toFixed(2), Math.min(x+14, x1-40), Y(v)-16, 26, C.org, 'left', 700); }
+    txt('ACCURACY ON 200 UNSEEN DIGITS', 570, 190, 22, C.mut, 'left', 600, DISP);
+    txt((T.acc*100).toFixed(1) + '%', 566, 320, 120, C.grn, 'left', 700, DISP);
+    txt('update ' + T.step.toLocaleString() + ' of ' + TOTAL.toLocaleString(), 570, 376, 24, C.mut);
+    tiles.forEach((s, i) => { const x = 570 + (i%10)*52, y = 450 + (i/10|0)*120, k = argmax(forward(T.net, s.x).p), ok = k === s.y;
+      g.fillStyle = C.pale; g.fillRect(x, y, 46, 46); g.drawImage(s.img, x+1, y+1, 44, 44); g.strokeStyle = i ? C.line : C.blue; g.lineWidth = i ? 1.5 : 3; g.strokeRect(x, y, 46, 46);
+      txt(String(k), x+23, y+80, 30, ok ? C.grn : C.red, 'center', 700, DISP); g.fillStyle = ok ? C.grn : C.red; g.fillRect(x+7, y+88, 32, 4); });
+    txt('its current guess, green when right', 570, 720, 22, C.mut, 'left', 500, DISP);
+  } });
+
+S.push(forwardScene('Forward pass, after training', () => { if (!T) T = newTrainer(); advance(T, TOTAL); return T.net; }, [
+  [0, 'Same picture, same arithmetic. Only the weights have changed.'],
+  [1, 'Hidden neurons now respond to pieces of digits: a top bar, a diagonal stroke.'],
+  [3.6, 'The outputs weigh that evidence for each digit.'],
+  [7, 'Learning was nothing more than those four steps, repeated: forward, loss, backward, update.']]));
+
+DECK.label = 'ENGR-126 · Project 2';
+SLIDES.push({ cover:true, title:'', boxes:[coverScene({ label:'ENGR-126 · VIBE CODING WITH AI', title:['Seven Through', 'a Network'], subtitle:'How a neural network reads a handwritten digit', author:'Prof. Erdem Topsakal', affil:'College of Engineering, VCU' })] });
+SLIDES.push({ title:'From a picture to a first guess', boxes:[S[0], S[1]] });
+SLIDES.push({ title:'Measuring the error, then fixing it', boxes:[S[2], S[3]] });
+SLIDES.push({ title:'Training, and the same picture again', boxes:[S[4], S[5]] });
+
+/* =====================================================================
+   SCENES END. PLAYER: do not edit below.
+   ===================================================================== */
+const $ = id => document.getElementById(id), reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const panels = [0, 1].map(i => { const cv = $('cv'+i), P = { cv, ctx:cv.getContext('2d'), box:$('box'+i), cap:$('cap'+i), head:$('h'+i), bt:$('bt'+i), btKey:'', shown:'', w:1, h:1, dpr:1 };
+  const rs = () => { P.dpr = Math.min(window.devicePixelRatio || 1, 2); P.w = cv.clientWidth || 1; P.h = cv.clientHeight || 1; cv.width = Math.round(P.w*P.dpr); cv.height = Math.round(P.h*P.dpr); };
+  new ResizeObserver(rs).observe(cv.parentElement); rs(); return P; });
+let sl = 0, started = 0, tt = [], stops = [], beats = [], lastNow = 0;
+/* Steps inside a box: by default one step per caption. A scene may list its own pause times instead: steps:[2.5, 4.2]. */
+const pausesOf = s => !STEP_MODE ? [] : (s.steps ? s.steps.slice() : (s.caps || []).map(c => c[0] - .02).filter(v => v > .05 && v < s.D));
+const beatStart = (s, b) => b === 0 ? 0 : pausesOf(s)[b-1] + (s.steps ? 0 : .02);
+function setBeat(k, b, fromStart){ const s = SLIDES[sl].boxes[k], P = pausesOf(s); beats[k] = b; stops[k] = b < P.length ? P[b] : Infinity; if (fromStart){ tt[k] = beatStart(s, b); if (s.enter) s.enter(); } }
+function finishBox(k){ const s = SLIDES[sl].boxes[k]; beats[k] = pausesOf(s).length; stops[k] = Infinity; tt[k] = Math.max(tt[k] || 0, s.D + 5); }
+function paint(P, scene, t){
+  let cap = ''; for (const c of (scene.caps || [])) if (t >= c[0]) cap = c[1];
+  if (cap !== P.shown){ P.shown = cap; P.cap.textContent = cap; }
+  g = P.ctx; g.setTransform(1,0,0,1,0,0); g.globalAlpha = 1; g.fillStyle = C.bg; g.fillRect(0, 0, P.cv.width, P.cv.height);
+  const s = Math.min(P.w/W, P.h/H); g.setTransform(P.dpr*s, 0, 0, P.dpr*s, P.dpr*(P.w - W*s)/2, P.dpr*(P.h - H*s)/2);
+  scene.draw(t);
+}
+function startBox(){ const d = SLIDES[sl]; if (started >= d.boxes.length) return false; const k = started; panels[k].box.classList.add('on'); started++; setBeat(k, 0, true); return true; }
+function go(i, toEnd){ sl = clamp(i, 0, SLIDES.length-1); const d = SLIDES[sl]; started = 0; tt = []; stops = []; beats = []; W = d.boxes.length === 1 ? 1900 : 1100;
+  $('boxes').classList.toggle('single', d.boxes.length === 1); $('slide').classList.toggle('cover', !!d.cover);
+  panels.forEach((P, k) => { P.shown = ''; P.cap.textContent = ''; P.btKey = ''; P.bt.innerHTML = ''; P.box.classList.remove('on'); P.box.hidden = k >= d.boxes.length; P.head.textContent = d.boxes[k] ? (d.boxes[k].title || '') : ''; });
+  void panels[0].box.offsetWidth; startBox();
+  if (reduce){ while (startBox()); for (let k = 0; k < started; k++) finishBox(k); }
+  else if (toEnd){ while (startBox()); for (let k = 0; k < started - 1; k++) finishBox(k); setBeat(started - 1, pausesOf(d.boxes[started-1]).length, true); }
+  $('step').textContent = (DECK.label ? DECK.label + ' · ' : '') + 'Slide ' + (sl+1) + ' of ' + SLIDES.length; $('title').textContent = d.title; $('prev').disabled = false;
+  $('prog').innerHTML = SLIDES.map((_, k) => k === sl ? '<i class="on"></i>' : '<i></i>').join(''); }
+function next(){ if (reduce){ if (sl < SLIDES.length-1) go(sl+1); return; }           /* one step forward: next step in this box, then the next box, then the next slide */
+  const k = started - 1, s = SLIDES[sl].boxes[k], P = pausesOf(s);
+  if (beats[k] < P.length){ tt[k] = Math.max(tt[k], P[beats[k]]); setBeat(k, beats[k] + 1, false); return; }
+  tt[k] = Math.max(tt[k], s.D);
+  if (!startBox() && sl < SLIDES.length-1) go(sl+1); }
+function back(){ if (reduce){ go(sl-1); return; }                                       /* one step backward, the mirror of next() */
+  const k = started - 1, s = SLIDES[sl].boxes[k], b = beats[k];
+  if (tt[k] - beatStart(s, b) > BACK_REPLAY){ setBeat(k, b, true); return; }           /* replay the step that is showing */
+  if (b > 0){ setBeat(k, b - 1, true); return; }                                        /* the step before it in this box */
+  if (k > 0){ panels[k].box.classList.remove('on'); started--; setBeat(k - 1, pausesOf(SLIDES[sl].boxes[k-1]).length, true); return; }   /* hide this box, replay the last step of the one before */
+  if (sl > 0) go(sl-1, true); else setBeat(0, 0, true); }                               /* previous slide, shown complete */
+function frame(now){
+  const d = SLIDES[sl], dt = Math.min(.1, Math.max(0, (now - lastNow)/1000)); lastNow = now;
+  if (AUTO_CHAIN && started < d.boxes.length && stops[started-1] === Infinity && tt[started-1] > d.boxes[started-1].D + CHAIN_GAP) startBox();
+  for (let k = 0; k < started; k++){ const s = d.boxes[k], P = panels[k], n = pausesOf(s).length + 1; tt[k] = Math.min(tt[k] + dt, stops[k]); paint(P, s, reduce ? s.D + .01 : tt[k]);
+    const key = n > 1 ? beats[k] + '/' + n : ''; if (key !== P.btKey){ P.btKey = key; P.bt.innerHTML = n > 1 ? Array.from({ length:n }, (_, j) => j <= beats[k] ? '<i class="on"></i>' : '<i></i>').join('') : ''; } }
+  $('next').disabled = started >= d.boxes.length && sl === SLIDES.length-1 && beats[started-1] >= pausesOf(d.boxes[started-1]).length;
+  requestAnimationFrame(frame);
+}
+const fullscreen = () => { const el = document.documentElement; if (document.fullscreenElement) document.exitFullscreen(); else if (el.requestFullscreen) el.requestFullscreen().catch(() => {}); };
+$('prev').onclick = back; $('next').onclick = next; $('replay').onclick = () => go(sl); $('full').onclick = fullscreen;
+$('boxes').addEventListener('click', next);
+addEventListener('keydown', e => { if (e.target.tagName === 'BUTTON' && (e.key === ' ' || e.key === 'Enter')) return;
+  if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+  else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); back(); }
+  else if (e.key === 'r' || e.key === 'R') go(sl);
+  else if (e.key === 'h' || e.key === 'H') $('foot').hidden = !$('foot').hidden;
+  else if (e.key === 'f' || e.key === 'F') fullscreen(); });
+window.__deck = { go, next, back, count: SLIDES.length, boxes: i => SLIDES[i].boxes.map(b => b.D), started: () => started, state: () => ({ slide:sl + 1, boxes:started, step:beats.slice(0, started).map(b => b + 1), t:tt.slice(0, started).map(v => +v.toFixed(2)) }),
+  shift: s => { for (let k = 0; k < started; k++){ beats[k] = pausesOf(SLIDES[sl].boxes[k]).length; stops[k] = Infinity; tt[k] += s; } } };
+const begin = () => { go(0); requestAnimationFrame(frame); };
+const fonts = document.fonts ? Promise.all(['700 20px "JetBrains Mono"', '600 20px "Space Grotesk"'].map(f => document.fonts.load(f))) : Promise.resolve();
+Promise.race([fonts, new Promise(r => setTimeout(r, 1500))]).then(begin, begin);
+})();
+</script>
+<!--ARTIFACT-FRAGMENT-END-->
+</body>
+</html>
