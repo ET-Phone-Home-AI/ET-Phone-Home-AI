@@ -150,9 +150,9 @@ const sc = document.createElement('canvas'); sc.width = sc.height = 56;
 const sg = sc.getContext('2d', { willReadFrequently:true });
 function toVec(p){
   sg.clearRect(0,0,56,56); drawDigit(sg, 56, p, '#000');
-  const a = sg.getImageData(0,0,56,56).data, x = new Float32Array(196); let mx = 1e-6;
-  for (let r=0;r<14;r++) for (let c=0;c<14;c++){ let s=0; for (let y=0;y<4;y++) for (let q=0;q<4;q++) s += a[((r*4+y)*56 + c*4+q)*4+3]; x[r*14+c] = s/4080; if (x[r*14+c]>mx) mx = x[r*14+c]; }
-  for (let i=0;i<196;i++) x[i] /= mx;
+  const a = sg.getImageData(0,0,56,56).data, x = new Float32Array(784); let mx = 1e-6;
+  for (let r=0;r<28;r++) for (let c=0;c<28;c++){ let s=0; for (let y=0;y<2;y++) for (let q=0;q<2;q++) s += a[((r*2+y)*56 + c*2+q)*4+3]; x[r*28+c] = s/1020; if (x[r*28+c]>mx) mx = x[r*28+c]; }
+  for (let i=0;i<784;i++) x[i] /= mx;
   return x;
 }
 function tileOf(p){ const c = document.createElement('canvas'); c.width = c.height = 56; drawDigit(c.getContext('2d'), 56, p, C.ink); return c; }
@@ -164,10 +164,10 @@ const dr = mulberry(7), train = [], test = [], tiles = [{ img:tileOf(heroP), x:h
 for (let i=0;i<800;i++){ const p = mkParams(dr, i%10); train.push({ x:toVec(p), y:i%10 }); }
 for (let i=0;i<200;i++){ const p = mkParams(dr, i%10); const s = { x:toVec(p), y:i%10 }; test.push(s); if (tiles.length<20 && i%10 !== 7 || (tiles.length<20 && i>100)) tiles.push({ img:tileOf(p), x:s.x, y:s.y }); }
 
-/* ---------- network 196 -> 16 -> 10 ---------- */
-const NI = 196, NH = 16, NO = 10, LR = 0.03, TOTAL = 6000, NPARAM = NI*NH + NH + NH*NO + NO;
+/* ---------- network 784 -> 16 -> 10 (28 x 28 pixels in, the MNIST image size) ---------- */
+const NI = 784, NH = 16, NO = 10, LR = 0.01, TOTAL = 6000, NPARAM = NI*NH + NH + NH*NO + NO;
 function makeNet(r){ const n = { W1:new Float32Array(NH*NI), b1:new Float32Array(NH), W2:new Float32Array(NO*NH), b2:new Float32Array(NO) };
-  for (let i=0;i<n.W1.length;i++) n.W1[i] = randn(r)*Math.sqrt(2/40); for (let i=0;i<n.W2.length;i++) n.W2[i] = randn(r)*Math.sqrt(2/NH); return n; }
+  for (let i=0;i<n.W1.length;i++) n.W1[i] = randn(r)*Math.sqrt(2/160); for (let i=0;i<n.W2.length;i++) n.W2[i] = randn(r)*Math.sqrt(2/NH); return n; }
 const clone = n => ({ W1:n.W1.slice(), b1:n.b1.slice(), W2:n.W2.slice(), b2:n.b2.slice() });
 function forward(n, x){
   const z = new Float32Array(NH), h = new Float32Array(NH), o = new Float32Array(NO), p = new Float32Array(NO);
@@ -197,9 +197,9 @@ const GX = 30, GY = 150, GC = 20, HX = 520, OX = 760, BX = 800, BW = 150, PX = 1
 const hy = j => 90 + j*48, oy = k => 126 + k*72, ry = r => GY + (r+.5)*GC, RX = GX + 14*GC + 6;
 function drawGrid(x, glow, glowCol){
   g.fillStyle = C.pale; g.fillRect(GX, GY, 280, 280);
-  for (let i=0;i<196;i++){ const v = x[i]; if (v < .02) continue; const cx = GX + (i%14)*GC, cy = GY + (i/14|0)*GC;
-    A(v, () => { g.fillStyle = C.ink; g.fillRect(cx, cy, GC, GC); });
-    if (glow > 0) A(v*glow*.85, () => { g.fillStyle = glowCol; g.fillRect(cx, cy, GC, GC); }); }
+  for (let i=0;i<784;i++){ const v = x[i]; if (v < .02) continue; const cx = GX + (i%28)*10, cy = GY + (i/28|0)*10;
+    A(v, () => { g.fillStyle = C.ink; g.fillRect(cx, cy, 10, 10); });
+    if (glow > 0) A(v*glow*.85, () => { g.fillStyle = glowCol; g.fillRect(cx, cy, 10, 10); }); }
   g.strokeStyle = C.line; g.lineWidth = 1.5; g.strokeRect(GX, GY, 280, 280);
 }
 function baseEdges(){ g.strokeStyle = C.line; g.lineWidth = .6; g.globalAlpha = .45; g.beginPath();
@@ -213,10 +213,10 @@ function pulse(x1, y1, x2, y2, s, u, col, t, amb){
   if (u < 1) circle(x, y, 3 + 4.5*s, col);
   else if (amb && s > .35){ const q = (t*.45 + (x1*.013 + y1*.031 + y2*.017)) % 1; A(.75, () => circle(lerp(x1,x2,q), lerp(y1,y2,q), 2.2 + 2.8*s, col)); }
 }
-function colLabels(){ txt('196 pixels', GX+140, GY-18, 22, C.mut, 'center', 500, DISP); txt('16 hidden', HX, 50, 22, C.mut, 'center', 500, DISP); txt('10 outputs', OX, 82, 22, C.mut, 'center', 500, DISP); }
+function colLabels(){ txt('784 pixels', GX+140, GY-18, 22, C.mut, 'center', 500, DISP); txt('16 hidden', HX, 50, 22, C.mut, 'center', 500, DISP); txt('10 outputs', OX, 82, 22, C.mut, 'center', 500, DISP); }
 function strengths(n, x, f){
   const e1 = [], e2 = []; let m1 = 1e-9, m2 = 1e-9;
-  for (let r=0;r<14;r++) for (let j=0;j<NH;j++){ let s = 0; for (let c=0;c<14;c++) s += n.W1[j*NI + r*14+c]*x[r*14+c]; s = Math.abs(s)*(f.h[j]>0?1:.25); e1.push({ r, j, s }); if (s>m1) m1 = s; }
+  for (let r=0;r<14;r++) for (let j=0;j<NH;j++){ let s = 0; for (let q=0;q<56;q++) s += n.W1[j*NI + r*56+q]*x[r*56+q]; s = Math.abs(s)*(f.h[j]>0?1:.25); e1.push({ r, j, s }); if (s>m1) m1 = s; }
   for (let j=0;j<NH;j++) for (let k=0;k<NO;k++){ const s = Math.abs(n.W2[k*NH+j]*f.h[j]); e2.push({ j, k, s }); if (s>m2) m2 = s; }
   e1.forEach(e => e.s /= m1); e2.forEach(e => e.s /= m2);
   return { e1:e1.filter(e => e.s > .06), e2:e2.filter(e => e.s > .06) };
@@ -252,36 +252,39 @@ function forwardScene(title, getNet, caps){
 /* ---------- the six animations ---------- */
 const S = [];
 
-S.push({ title:'A 7 becomes 196 numbers', D:11.5, caps:[
+S.push({ title:'A 7 becomes 784 numbers', D:11.5, caps:[
   [0, 'The camera hands us a picture.'],
-  [1.5, 'Shrunk to a 14 × 14 grid, every square is one pixel.'],
-  [3.8, 'Each pixel is just a brightness between 0 (paper) and 1 (ink).'],
-  [7.5, 'Lay the rows end to end and the image is a vector x of 196 numbers. That vector is all the network ever sees.']],
-  enter(){},
+  [1.5, 'Shrunk to the MNIST size, 28 × 28, every square is one pixel.'],
+  [3.8, 'Each pixel is just a brightness between 0 (paper) and 1 (ink). Zoom in on a small patch to read the numbers.'],
+  [7.5, 'Lay the 28 rows end to end and the image is a vector x of 784 numbers. That vector is all the network ever sees.']],
+  enter(){ let best = -1; for (let r = 0; r <= 21; r++) for (let c = 0; c <= 21; c++){ let s = 0; for (let y = 0; y < 7; y++) for (let q = 0; q < 7; q++){ const v = hero[(r+y)*28 + c+q]; s += v*(1-v)*4 + v*.3; } if (s > best){ best = s; this.zr = r; this.zc = c; } } },
   draw(t){
-    const IX = 30, IY = 150, IS = 300, ic = IS/14, NX = 460, NY = 80, nc = 42, SX = 60, SY = 740, cw = 5, sh = 44;
+    const IX = 40, IY = 170, IS = 392, ic = 14, NX = 560, NY = 110, nc = 70, SX = 60, SY = 740, cw = 1.25, sh = 44, zr = this.zr, zc = this.zc;
     const a = seg(t, 0, 1.2), s = .9 + .1*ease(a);
     A(a, () => g.drawImage(big, IX + IS*(1-s)/2, IY + IS*(1-s)/2, IS*s, IS*s));
-    const up = seg(t, 1.5, 3.5)*14;
-    for (let r=0;r<14;r++){ const ur = clamp(up-r, 0, 1); if (ur <= 0) continue;
-      for (let c=0;c<14;c++){ const v = hero[r*14+c]; A(ur, () => { g.fillStyle = C.bg; g.fillRect(IX+c*ic, IY+r*ic, ic+.5, ic+.5); }); A(ur*v, () => { g.fillStyle = C.ink; g.fillRect(IX+c*ic, IY+r*ic, ic+.5, ic+.5); }); } }
-    A(seg(t, 1.5, 2.5)*.7, () => { g.strokeStyle = C.line; g.lineWidth = 1; g.beginPath(); for (let i=0;i<=14;i++){ g.moveTo(IX+i*ic, IY); g.lineTo(IX+i*ic, IY+IS); g.moveTo(IX, IY+i*ic); g.lineTo(IX+IS, IY+i*ic); } g.stroke(); });
-    A(seg(t, 3.6, 4.2), () => { g.strokeStyle = C.blue; g.lineWidth = 5; g.beginPath(); g.moveTo(350, 300); g.lineTo(436, 300); g.moveTo(418, 284); g.lineTo(438, 300); g.lineTo(418, 316); g.stroke(); });
-    for (let i=0;i<196;i++){ const r = i/14|0, c = i%14, v = hero[i], st = (r+c)/26*.9, um = ease(seg(t, 3.8+st, 4.9+st)); if (um <= 0) continue;
-      const x = lerp(IX+c*ic, NX+c*nc, um), y = lerp(IY+r*ic, NY+r*nc, um), w = lerp(ic, nc, um), un = seg(t, 5.6+st*.8, 6.4+st*.8);
-      g.fillStyle = C.bg; g.fillRect(x, y, w, w); A(v*(1 - .75*un), () => { g.fillStyle = C.ink; g.fillRect(x, y, w, w); });
-      g.strokeStyle = C.line; g.lineWidth = 1; g.strokeRect(x, y, w, w);
-      A(un, () => txt(v < .05 ? '0' : v.toFixed(1), x+w/2, y+w/2+6, 17, v < .05 ? '#AEB7C6' : C.ink, 'center', v < .05 ? 500 : 700)); }
-    A(seg(t, 7.3, 7.8), () => { g.fillStyle = C.pale; g.fillRect(SX, SY, 196*cw, sh); });
-    for (let i=0;i<196;i++){ const r = i/14|0, c = i%14, v = hero[i], uf = ease(seg(t, 7.5+r*.14, 8.6+r*.14)); if (uf <= 0) continue;
-      const x = lerp(NX+c*nc, SX+i*cw, uf), y = lerp(NY+r*nc, SY, uf), w = lerp(nc, cw, uf), h = lerp(nc, sh, uf);
-      A(.25 + .75*uf, () => { g.fillStyle = C.pale; g.fillRect(x, y, w, h); A(v, () => { g.fillStyle = C.blue; g.fillRect(x, y, w, h); }); }); }
-    A(seg(t, 10.2, 10.8), () => { g.strokeStyle = C.blue; g.lineWidth = 2.5; g.strokeRect(SX-3, SY-3, 196*cw+6, sh+6); txt('x = [ 196 numbers ]', 550, SY+sh+50, 32, C.blue, 'center', 700); });
+    const up = seg(t, 1.5, 3.5)*28;
+    for (let r=0;r<28;r++){ const ur = clamp(up-r, 0, 1); if (ur <= 0) continue; A(ur, () => { g.fillStyle = C.bg; g.fillRect(IX, IY+r*ic, IS, ic+.5); });
+      for (let c=0;c<28;c++){ const v = hero[r*28+c]; if (v > .02) A(ur*v, () => { g.fillStyle = C.ink; g.fillRect(IX+c*ic, IY+r*ic, ic+.5, ic+.5); }); } }
+    A(seg(t, 1.5, 2.5)*.6, () => { g.strokeStyle = C.line; g.lineWidth = .8; g.beginPath(); for (let i=0;i<=28;i++){ g.moveTo(IX+i*ic, IY); g.lineTo(IX+i*ic, IY+IS); g.moveTo(IX, IY+i*ic); g.lineTo(IX+IS, IY+i*ic); } g.stroke(); });
+    A(seg(t, 2.6, 3.2), () => txt('28 × 28 pixels', IX + IS/2, IY + IS + 36, 24, C.mut, 'center', 600, DISP));
+    const uz = seg(t, 3.8, 4.5);
+    A(uz, () => { g.strokeStyle = C.blue; g.lineWidth = 1.5; g.beginPath(); g.moveTo(IX+(zc+7)*ic, IY+zr*ic); g.lineTo(NX, NY); g.moveTo(IX+(zc+7)*ic, IY+(zr+7)*ic); g.lineTo(NX, NY+7*nc); g.stroke(); });
+    for (let y=0;y<7;y++) for (let q=0;q<7;q++){ const v = hero[(zr+y)*28 + zc+q], st = (y+q)/12*.8, um = ease(seg(t, 4.2+st, 5+st)); if (um <= 0) continue;
+      const x = NX+q*nc, yy = NY+y*nc, un = seg(t, 5.4+st*.8, 6.2+st*.8);
+      A(um, () => { g.fillStyle = C.bg; g.fillRect(x, yy, nc, nc); A(v*(1 - .75*un), () => { g.fillStyle = C.ink; g.fillRect(x, yy, nc, nc); }); g.strokeStyle = C.line; g.lineWidth = 1; g.strokeRect(x, yy, nc, nc);
+        A(un, () => txt(v < .05 ? '0' : v.toFixed(1), x+nc/2, yy+nc/2+9, 26, v < .05 ? '#AEB7C6' : C.ink, 'center', v < .05 ? 500 : 700)); }); }
+    A(uz, () => { g.strokeStyle = C.blue; g.lineWidth = 3; g.strokeRect(IX+zc*ic, IY+zr*ic, 7*ic, 7*ic); g.strokeRect(NX, NY, 7*nc, 7*nc);
+      txt('zoom: rows ' + (zr+1) + ' to ' + (zr+7) + ', columns ' + (zc+1) + ' to ' + (zc+7), NX + 3.5*nc, NY + 7*nc + 36, 24, C.mut, 'center', 600, DISP); });
+    A(seg(t, 7.3, 7.8), () => { g.fillStyle = C.pale; g.fillRect(SX, SY, 784*cw, sh); });
+    for (let r=0;r<28;r++){ const uf = ease(seg(t, 7.5+r*.07, 8.6+r*.07)); if (uf <= 0) continue; const y = lerp(IY+r*ic, SY, uf), h = lerp(ic, sh, uf), w = lerp(ic, cw, uf);
+      A(.25 + .75*uf, () => { g.fillStyle = C.pale; g.fillRect(lerp(IX, SX+r*28*cw, uf), y, w*28, h);
+        for (let c=0;c<28;c++){ const v = hero[r*28+c]; if (v > .02) A(v, () => { g.fillStyle = C.blue; g.fillRect(lerp(IX+c*ic, SX+(r*28+c)*cw, uf), y, w+.4, h); }); } }); }
+    A(seg(t, 10.5, 11.1), () => { g.strokeStyle = C.blue; g.lineWidth = 2.5; g.strokeRect(SX-3, SY-3, 784*cw+6, sh+6); txt('x = [ 784 numbers ]', 550, SY+sh+50, 32, C.blue, 'center', 700); });
   } });
 
 S.push(forwardScene('Forward pass, before any training', () => net0, [
   [0, 'The weights start as random numbers, so the network knows nothing yet.'],
-  [1, 'Each hidden neuron takes a weighted sum of all 196 pixels and keeps it only if positive: h = max(0, w·x + b).'],
+  [1, 'Each hidden neuron takes a weighted sum of all 784 pixels and keeps it only if positive: h = max(0, w·x + b).'],
   [3.6, 'Each output adds up the hidden values with its own weights: o = W₂h + b₂.'],
   [5.4, 'Softmax, p = exp(o) / Σ exp(o), turns ten raw scores into probabilities that add up to 100%.'],
   [7, 'Random weights give a random opinion.']]));
@@ -323,7 +326,7 @@ S.push({ title:'Backpropagation, then one weight update', D:10, caps:[
     const e2 = [], e1 = []; let m2 = 1e-9, m1 = 1e-9, mh = 1e-9;
     for (let j=0;j<NH;j++) for (let k=0;k<NO;k++){ const s = Math.abs(b.d[k]*f.h[j]); e2.push({ j, k, s }); if (s>m2) m2 = s; }
     for (let j=0;j<NH;j++){ const s = Math.abs(b.dh[j]); if (s>mh) mh = s; }
-    for (let r=0;r<14;r++){ let rs = 0; for (let c=0;c<14;c++) rs += hero[r*14+c]; for (let j=0;j<NH;j++){ const s = Math.abs(b.dh[j])*rs; e1.push({ r, j, s }); if (s>m1) m1 = s; } }
+    for (let r=0;r<14;r++){ let rs = 0; for (let q=0;q<56;q++) rs += hero[r*56+q]; for (let j=0;j<NH;j++){ const s = Math.abs(b.dh[j])*rs; e1.push({ r, j, s }); if (s>m1) m1 = s; } }
     e2.forEach(e => e.s /= m2); e1.forEach(e => e.s /= m1); this.mh = mh;
     this.e2 = e2.filter(e => e.s > .06); this.e1 = e1.filter(e => e.s > .06);
     const n1 = clone(net0); sgd(n1, hero, 7, .1); this.pa = forward(n1, hero).p[7];
