@@ -130,6 +130,13 @@ be, feeding an antenna that radiates).
 Use that author and affiliation unless Erdem gives different ones. Name the deck for what the
 audience will learn, and set the page `<title>` to the same name.
 
+**A video can be a slide.** `SLIDES.push({ cover: true, video: true, title: '', boxes: [videoScene([['video/mp4', b64mp4], ['video/webm', b64webm]])] })`
+fills the slide with the clip, starts it when the slide opens, pauses it when Erdem moves on, and
+P pauses or resumes it. Give base64 strings, not data URIs. Convert whatever he supplies to H.264
+MP4 first (`ffmpeg -i in -c:v libx264 -crf 24 -pix_fmt yuv420p -c:a aac -movflags +faststart`),
+because phone and screen-recorder clips are often HEVC, which many browsers cannot play; add a
+VP9 WebM copy as a second source. Keep the whole deck under 16 MB.
+
 ### 3. Design rules
 
 - This format has its own look. Do not apply the black-and-gold PowerPoint style from the

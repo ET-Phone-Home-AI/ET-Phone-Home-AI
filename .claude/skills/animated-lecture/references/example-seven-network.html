@@ -36,6 +36,8 @@ h1 { margin: 0; font: 600 2.9cqw/1.1 var(--display); letter-spacing: -.01em; tex
 .slide.cover { grid-template-rows: 1fr; }
 .slide.cover .band, .slide.cover .info { display: none; }
 .slide.cover .cw { border: 0; box-shadow: none; }
+.slide.video { padding: 1.3cqw; }
+.slide.video .cw { border-radius: .5cqw; }
 .box { min-width: 0; min-height: 0; display: grid; grid-template-rows: 1fr auto; gap: 1.2cqw;
   opacity: 0; transform: translateY(1cqw); transition: opacity .5s ease, transform .5s ease; }
 .box.on { opacity: 1; transform: none; }
@@ -125,6 +127,17 @@ function coverScene(o){                      /* title page: SLIDES.push({ cover:
           if (bk[l] > 0 && bk[l] < 1 && (i + j) % 2 === 1) circle(lerp(x2, x1, ease(bk[l])), lerp(y2, y1, ease(bk[l])), 7, C.org); }
         for (let l = 0; l < 3; l++) for (let i = 0; i < Ls[l]; i++){ const x = Xs[l], yy = Yn(l, i); circle(x, yy, 34, C.bg, C.ink, 2.5); A(fa[l]*.9, () => circle(x, yy, 34, C.blue, C.ink, 2.5)); A(ba[l], () => circle(x, yy, 44, null, C.org, 4)); } });
     } };
+}
+
+function videoScene(sources, o){                /* a video as a slide: SLIDES.push({ cover:true, title:'', boxes:[videoScene([['video/mp4', base64], ['video/webm', base64]])] }) */
+  o = o || {}; let v = null;
+  const make = () => { if (v) return; v = document.createElement('video'); v.playsInline = true; v.preload = 'auto';
+    for (const sc of sources){ const bin = atob(sc[1]), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); const el = document.createElement('source'); el.type = sc[0]; el.src = URL.createObjectURL(new Blob([u8], { type:sc[0] })); v.appendChild(el); } };
+  return { title:o.title || '', D:o.D || 1, caps:o.caps || [], isVideo:true, el:() => v,
+    enter(){ make(); try { v.currentTime = 0; } catch (e) {} v.muted = false; const p = v.play(); if (p && p.catch) p.catch(() => { v.muted = true; const q = v.play(); if (q && q.catch) q.catch(() => {}); }); },   /* starts with sound; falls back to muted if the browser blocks sound */
+    leave(){ if (v) v.pause(); },
+    toggle(){ if (v){ if (v.paused) v.play(); else v.pause(); } },
+    draw(t){ if (!v || v.readyState < 2){ txt('loading video…', W/2, 460, 30, C.mut, 'center', 600, DISP); return; } const s = Math.min(W/v.videoWidth, H/v.videoHeight), w = v.videoWidth*s, h = v.videoHeight*s; g.drawImage(v, (W - w)/2, (H - h)/2, w, h); } };
 }
 
 const AUTO_CHAIN = false;                     /* false: the next box waits for Next (Erdem's preference). true: it starts by itself when the previous one finishes. */
@@ -413,8 +426,8 @@ function paint(P, scene, t){
   scene.draw(t);
 }
 function startBox(){ const d = SLIDES[sl]; if (started >= d.boxes.length) return false; const k = started; panels[k].box.classList.add('on'); started++; setBeat(k, 0, true); return true; }
-function go(i, toEnd){ sl = clamp(i, 0, SLIDES.length-1); const d = SLIDES[sl]; started = 0; tt = []; stops = []; beats = []; W = d.boxes.length === 1 ? 1900 : 1100;
-  $('boxes').classList.toggle('single', d.boxes.length === 1); $('slide').classList.toggle('cover', !!d.cover);
+function go(i, toEnd){ if (SLIDES[sl]) SLIDES[sl].boxes.forEach(s => s.leave && s.leave()); sl = clamp(i, 0, SLIDES.length-1); const d = SLIDES[sl]; started = 0; tt = []; stops = []; beats = []; W = d.video ? 1600 : d.boxes.length === 1 ? 1900 : 1100;
+  $('boxes').classList.toggle('single', d.boxes.length === 1); $('slide').classList.toggle('cover', !!d.cover); $('slide').classList.toggle('video', !!d.video);
   panels.forEach((P, k) => { P.shown = ''; P.cap.textContent = ''; P.btKey = ''; P.bt.innerHTML = ''; P.box.classList.remove('on'); P.box.hidden = k >= d.boxes.length; P.head.textContent = d.boxes[k] ? (d.boxes[k].title || '') : ''; });
   void panels[0].box.offsetWidth; startBox();
   if (reduce){ while (startBox()); for (let k = 0; k < started; k++) finishBox(k); }
@@ -448,6 +461,7 @@ addEventListener('keydown', e => { if (e.target.tagName === 'BUTTON' && (e.key =
   else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); back(); }
   else if (e.key === 'r' || e.key === 'R') go(sl);
   else if (e.key === 'h' || e.key === 'H') $('foot').hidden = !$('foot').hidden;
+  else if (e.key === 'p' || e.key === 'P') SLIDES[sl].boxes.forEach(s => s.toggle && s.toggle());   /* pause or resume a video slide */
   else if (e.key === 'f' || e.key === 'F') fullscreen(); });
 window.__deck = { go, next, back, count: SLIDES.length, boxes: i => SLIDES[i].boxes.map(b => b.D), started: () => started, state: () => ({ slide:sl + 1, boxes:started, step:beats.slice(0, started).map(b => b + 1), t:tt.slice(0, started).map(v => +v.toFixed(2)) }),
   shift: s => { for (let k = 0; k < started; k++){ beats[k] = pausesOf(SLIDES[sl].boxes[k]).length; stops[k] = Infinity; tt[k] += s; } } };
